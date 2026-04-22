@@ -117,7 +117,7 @@ CT = "</color></b>"
 /////////// IMPRT LINE /////////
 //////////// change the below lines to the path where you placed 5hell.5pk //////
 // ! Do not remove the comments in the next two lines, they are necessary for Greybel support !
-import_code("/root/Driver/src/5hell/5hell.5pk.src") // no-emit;no-eval
+import_code("/root/src/5hell.5pk") // no-emit;no-eval
 //include "5hell.5pk"
 ///////////// END IMPRT LINE /////////
 // once built you may use the 'makfit' command to

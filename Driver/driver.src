@@ -124,13 +124,32 @@ end function
 
 install5hell = function()
     print(driver.msg("info", "installing 5hell v4.3.6..."))
-    print("  " + driver.text("muted", "building " + SRC_5HELL + "/5hell.src...", 0))
+    pkgPath = "/root/src"
+    ensureDir(pkgPath)
 
+    // Build each .5pk dependency (importable) to /root/src in order
+    pkgs = ["contrib.5pk", "net.5pk", "kore.5pk", "dtools.5pk", "5phinx.5pk", "help.5pk", "5hell.5pk"]
+    for pkg in pkgs
+        print("  " + driver.text("muted", "building  " + pkg + "...", 0))
+        result = s.build(SRC_5HELL + "/" + pkg + ".src", pkgPath, 1)
+        if c.File(pkgPath + "/" + pkg) == null then
+            print(driver.msg("error", "build failed (" + pkg + "): " + result))
+            return 0
+        end if
+    end for
+
+    // Build the main binary (not importable) to /root/
+    print("  " + driver.text("muted", "building  5hell...", 0))
     result = s.build(SRC_5HELL + "/5hell.src", "/root/", 0)
     if c.File("/root/5hell") == null then
-        print(driver.msg("error", "build failed: " + result))
+        print(driver.msg("error", "build failed (5hell): " + result))
         return 0
     end if
+
+    // Clean up the temporary /root/src package directory
+    print("  " + driver.text("muted", "cleaning  " + pkgPath + "...", 0))
+    srcDir = c.File(pkgPath)
+    if srcDir != null then srcDir.delete
 
     print(driver.msg("success", "5hell installed  ->  /root/5hell"))
     return 1

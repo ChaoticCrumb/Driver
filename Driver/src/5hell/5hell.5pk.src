@@ -103,30 +103,30 @@ if DEBUG then print("<size=75%>dictionary loaded...("+(ds/1000)+"kb)</size>")
 //
 // import 5phinx -- this contains critical shared functions and the backbone of the hacking suite
 // Do not remove the comment in the next line, it is necessary for Greybel support
-import_code("/root/Driver/src/5hell/5phinx.5pk.src") // override=5phinx.5pk
+import_code("/root/src/5phinx.5pk") // override=5phinx.5pk
 //
 // set globals.metaxploit, globals.crypto, globals.apt_get 
 globals.super_import // located in 5phinx.5pk; include_lib latest of: metaxloit, crypto, aptclient
 //
 // import kore.5pk -- kore's domain
 // Do not remove the comment in the next line, it is necessary for Greybel support
-import_code("/root/Driver/src/5hell/kore.5pk.src") // override=kore.5pk
+import_code("/root/src/kore.5pk") // override=kore.5pk
 //
 // import dtools.5pk -- dev/dictionary tools
 // Do not remove the comment in the next line, it is necessary for Greybel support
-import_code("/root/Driver/src/5hell/dtools.5pk.src") // override=dtools.5pk
+import_code("/root/src/dtools.5pk") // override=dtools.5pk
 //
 // import contrib.5pk -- this contains shared functions and commands contributed by the community
 // Do not remove the comment in the next line, it is necessary for Greybel support
-import_code("/root/Driver/src/5hell/contrib.5pk.src") // override=contrib.5pk
+import_code("/root/src/contrib.5pk") // override=contrib.5pk
 //
 // import net.5pk -- networks tools
 // Do not remove the comment in the next line, it is necessary for Greybel support
-import_code("/root/Driver/src/5hell/net.5pk.src") // override=net.5pk
+import_code("/root/src/net.5pk") // override=net.5pk
 //
 // import help.5pk -- the help command and associated extra documentation
 // Do not remove the comment in the next line, it is necessary for Greybel support
-import_code("/root/Driver/src/5hell/help.5pk.src") // override=help.5pk
+import_code("/root/src/help.5pk") // override=help.5pk
 //
 // globals.dmanager = new DaemonManager // now handled by command.dm
 // dmanager.Init
