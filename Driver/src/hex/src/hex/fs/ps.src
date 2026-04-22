@@ -1,0 +1,63 @@
+// Prints usage and flag descriptions for the ps fs command.
+// @return {none}
+procsHelp = function
+    text = g.const.ni + g.l3("Usage:","u") + g.const.ni
+    text = text + g.g2(self.name) + g.l2(" List all processes running on the target.") + g.const.ni
+    text = text + g.g2(self.name) + g.b3(" [-h/help]") + g.l2(" Displays this help text") + g.const.nl
+
+    print(text)
+end function
+
+// Lists all running processes on the current context's computer in a formatted table.
+// Highlights dsession processes in red and hex processes using the accent color.
+// @param {list<string>|null} args - Pass ["-h"] or ["help"] to show usage, or null/[] to list processes.
+// @return {number} - 1 on success, 0 on failure.
+doProcs = function(args = null)
+    if args != null and args isa list and args.len == 1 and (args[0] == "-h" or args[0] == "help") then
+        self.help
+        return 1
+    end if
+
+    if args == null or args == [] then
+        idx = g.context.index
+        
+        if g.stack[idx].computer == null then
+            print g.error("Context must be a shell or computer")
+            return 0
+        end if
+
+        lines = g.stack[idx].computer.show_procs.split(char(10))[1:]
+        output = [g.const.indent + g.s3("<size=115%><voffset=0.5em>USER<pos=200>PID<pos=300>CPU<pos=400>MEM<pos=500>COMMAND</voffset></size>")]
+
+        for line in lines
+            line = line.replace("5hell", "<color=#d00>5</color><color=#FFF>hell</color>")
+            line = line.replace("hex", g.r1("hex"))
+            parts = line.split(" ")
+
+            user = parts[0]
+            pid = parts[1]
+            cpu = parts[2]
+            mem = parts[3]
+            command = parts[4]
+
+            if command == "dsession" then
+                output.push(g.const.indent + "<mark=" + g.colors.r1 + "99><color=#FFF><b>" + user + "<pos=200>" + pid + "<pos=300>" + cpu + "<pos=400>" + mem + "<pos=500>" + command + "</b></color></mark>")
+            else
+                output.push(g.const.indent + g.s2(user + "<pos=200>" + pid + "<pos=300>" + cpu + "<pos=400>" + mem + "<pos=500>" + command))
+            end if
+        end for
+
+        print output.join(char(10))
+
+        return 1
+    end if
+
+    return 0
+end function
+
+g.fs.ps = {
+    "name": "ps",
+    "shortDescription": "Show processes running on the target",
+    "exec": @doProcs,
+    "help": @procsHelp,
+}

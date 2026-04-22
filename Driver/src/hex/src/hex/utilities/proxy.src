@@ -1,0 +1,45 @@
+// Prints usage and flag descriptions for the proxy utility.
+// @return {none}
+proxyHelp = function()
+    text = g.const.ni + g.l3("Usage:","u") + g.const.ni
+    text = text + g.g2(self.name) + g.b3(" {#}") + g.l2(" Switches the selected proxy to the context in the stack at the provided index.") + g.const.ni
+    text = text + g.g2(self.name) + g.b3(" [-c/clean]") + g.l2(" Corrupts the log file on every proxy in the chain of connected proxies. (Note: This only effects contexts in the stack with 'proxy' in the source.)") + g.const.ni
+    text = text + g.g2(self.name) + g.b3(" [-d/disconnect]") + g.l2(" Corrupts the log file on every proxy in the chain of connected proxies, and then removes them from the stack. (Note: This only effects contexts in the stack with 'proxy' in the source.)") + g.const.ni
+    text = text + g.g2(self.name) + g.b3(" [-s/start]") + g.l2(" Connects to each proxy successively, making each new connection from the previous one.  Uses the last one in the chain as the source for attacks that leave logs.") + g.const.ni
+    text = text + g.g2(self.name) + g.b3(" [-h/help]") + g.l2(" Displays this help text") + g.const.nl
+
+    print(text)
+end function
+
+// Manages the proxy chain.  Dispatches to connect, clean, disconnect, or select a proxy
+// context based on the provided flag or stack index argument.
+// @param {list<string>} args - One of: a stack index, ["-s"], ["-c"], ["-d"], or ["-h"].
+// @return {none}
+doProxy = function(args)
+    if args == null or args == [] then
+        self.help
+    else if args.len == 1 and (args[0] == "-s" or args[0] == "start") then
+        g.func.getMap
+        g.func.connect_proxies
+    else if args.len == 1 and (args[0] == "-c" or args[0] == "clean") then
+        g.func.clean_proxies(0)
+    else if args.len == 1 and (args[0] == "-d" or args[0] == "disconnect") then
+        g.func.clean_proxies(1)
+    else if args.len == 1 and typeof(args[0].to_int) == "number" then
+        if g.stack.hasIndex(args[0]) then
+            g.func.set_proxy(args[0])
+        else
+            print(g.error("The specified index does not exist in the stack."))
+        end if
+    else
+        self.help
+    end if
+end function
+
+g.util.proxy = {
+    "name": "proxy",
+    "shortDescription": "Manages the proxy chain.",
+    "exec": @doProxy,
+    "help": @proxyHelp,
+    "data": {}
+}

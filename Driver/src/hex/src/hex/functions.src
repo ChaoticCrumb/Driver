@@ -1,0 +1,1791 @@
+// Retrieves the user based on file permissions.
+// @param {file} file - The file to check permissions on.
+// @param {number} color - Whether to return the username in color (1) or not (0).
+// @return {string} - The username.
+g.func.getUser = function(file, color = 0)
+    while file.path != "/"
+        file = file.parent
+    end while
+
+    if file.has_permission("w") then
+        if color then return g.r1("root") else return "root"
+    end if
+
+    for folder in file.get_folders
+        if folder.name == "home" then
+            for userDir in folder.get_folders
+                if userDir.has_permission("w") and userDir.name != "guest" then
+                    if color then return g.b2(userDir.name) else return userDir.name
+                end if
+            end for
+        end if
+    end for
+
+    if color then return g.l3("guest") else return "guest"
+end function
+
+// Recursively finds a folder by path.
+// @param {folder} folder - The starting folder.
+// @param {string} path - The path to search for.
+// @return {folder|null} - The found folder or null if not found.
+g.func.findFolder = function(folder, path)
+    if folder.path == path or folder.name == path then return folder
+
+    for subFolder in folder.get_folders
+        result = g.func.findFolder(subFolder, path)
+
+        if result then return result
+    end for
+
+    return null
+end function
+
+// Finds a writable folder starting from the given file.
+// @param {file} file - The starting file or folder.
+// @return {folder|null} - The writable folder or null if not found.
+g.func.findWritableFolder = function(file)
+    if file.is_folder and file.has_permission("w") then return file
+
+    for folder in file.get_folders
+        result = g.func.findWritableFolder(folder)
+
+        if result then return result
+    end for
+
+    return null
+end function
+
+// Recursively finds a file by name.
+// @param {file} file - The starting file or folder.
+// @param {string} name - The name of the file to search for.
+// @return {file|null} - The found file or null if not found.
+g.func.findFile = function(file, name)
+    if file.name == name and not file.is_folder then return file
+
+    files = file.get_files + file.get_folders
+
+    for temp in files
+        if temp.name == name and not temp.is_folder then return temp
+
+        if temp.is_folder then
+            result = g.func.findFile(temp, name)
+
+            if result then return result
+        end if
+    end for
+
+    return null
+end function
+
+// **Find:**
+// Finds files (and folders) matching a pattern with optional flags.  Use * as a wildcard character.
+// @description **Flags:**
+// @description  b - Binary Files (excluding folders)
+// @description  f - Folders Only
+// @description  t - Text Files
+// @description  r - Can Read
+// @description  w - Can Write
+// @description  x - Can Execute
+// @description  l - Include Symlinks
+// @example g.func.find(file, "*.so", "br") // Finds all readable libraries (binary files ending in ".so" with the permission "r")
+// @example g.func.find(file, "passwd", "t") // Finds all text files named "passwd"
+// @example g.func.find(file, "guest", "f") // Finds all folders named "guest"
+// @param {file} file - The starting file or folder.
+// @param {string} name - The pattern to match file names against.
+// @param {string|null} flags - Optional flags to filter results.
+// @return {list<file>} - The list of matching files.
+g.func.find = function(file, name, flags = null)
+    pattern = name.replace("\.", "\.").replace("\*", ".*")
+    b = flags != null and flags.indexOf("b") != null // Binary Files
+    f = flags != null and flags.indexOf("f") != null // Folders
+    t = flags != null and flags.indexOf("t") != null // Text Files
+    r = flags != null and flags.indexOf("r") != null // Can Read
+    w = flags != null and flags.indexOf("w") != null // Can Write
+    x = flags != null and flags.indexOf("x") != null // Can Execute
+    l = flags != null and flags.indexOf("l") != null // Include Symlinks
+
+    results = []
+
+    if file.name.is_match("^" + pattern, "i") or file.path == name then
+        isMatch = 1
+
+        if b and (not file.is_binary or file.is_folder) then isMatch = 0
+        if f and not file.is_folder then isMatch = 0
+        if t and file.is_binary then isMatch = 0
+        if r and not file.has_permission("r") then isMatch = 0
+        if w and not file.has_permission("w") then isMatch = 0
+        if x and not file.has_permission("x") then isMatch = 0
+        if not l and file.is_symlink then isMatch = 0
+
+        if isMatch then results.push(file)
+    end if
+    
+    if file.is_folder then
+        files = file.get_files + file.get_folders
+
+        for temp in files
+            results = results + g.func.find(temp, name, flags)
+        end for
+    end if
+
+    return results
+end function
+
+// Recursively finds files by name.
+// @param {file} file - The starting file or folder.
+// @param {string} name - The name of the file to search for.
+// @return {list<file>} - The found files or an empty list if none are found.
+g.func.findFiles = function(file, name)
+    results = []
+    if file.name == name and not file.is_folder then results.push(file)
+
+    files = file.get_files + file.get_folders
+
+    for temp in files
+        if temp.name == name and not temp.is_folder then results.push(temp)
+
+        if temp.is_folder then
+            results = results + g.func.findFiles(temp, name)
+        end if
+    end for
+
+    return results
+end function
+
+// Generates a random valid IP address that is not a LAN IP.
+// @return {string} - The generated IP address.
+g.func.getRandomIp = function
+    router = null
+
+    while not router
+        addr = ""
+        
+        while addr.split("\.").len < 4
+            seg = floor(rnd * 256)
+            if addr != "" then addr = addr + "."
+            addr = addr + seg
+        end while
+    
+        if not is_valid_ip(addr) or is_lan_ip(addr) then continue
+    
+        router = get_router(addr)
+    end while
+
+    return router.public_ip
+end function
+
+// Creates a heading string centered within two lines of ='s.
+// @param {string} str - The string to center.
+// @return {string} - The formatted heading.
+g.func.heading = function(str)
+    pos = (g.const.ll - str.len) / 2
+
+    heading = g.const.indent + g.const.llb + g.const.ni
+    heading = heading + g.b3(" "*pos + "<size=20>" + str + "</size>") + g.const.ni
+    heading = heading + g.const.llb + g.const.nl
+
+    return heading
+end function
+
+// Retrieves repository addresses from sources.txt.
+// @return {list<string>} - A list of repository addresses.
+g.func.getRepos = function()
+    context = g.stack[g.context.index]
+
+    if not context.computer then
+        print(g.error("No computer object found."))
+        return null
+    end if
+
+    sources = context.computer.File("/etc/apt/sources.txt")
+
+    if not sources then
+        print(g.error("Could not locate sources.txt"))
+        return null
+    end if
+
+    if not sources.has_permission("r") then
+        print(g.error("Could not read sources.txt"))
+        return null
+    end if
+
+    matches = sources.get_content.matches(g.const.ipPattern)
+
+    addresses = []
+
+    for index in matches.indexes
+        addresses.push(matches[index])
+    end for
+
+    return addresses
+end function
+
+// Retrieves the apt client library.
+// @return {aptclientLib|null} - The apt client object or null if not found.
+g.func.getApt = function()
+    context = g.stack[g.context.index]
+
+    if context.apt != null and context.apt.classID == "aptclientLib" then return context.apt
+
+    if not context.computer then
+        print(g.error("No computer object found."))
+        return null
+    end if
+
+    results = g.func.find(context.computer.File("/"), "aptclient.so", "b") + [0]
+
+    libFile = results[0]
+
+    if not libFile then
+        print(g.error("Could not locate aptclient.so"))
+        return null
+    end if
+
+    aptClient = include_lib(libFile.path)
+
+    if aptClient.classID == "aptclientLib" then
+        return aptClient
+    else
+        print(g.const.indent + g.error("Invalid library file.  The file loaded is not an aptclient library. (" + aptClient.classID + ")"))
+        return null
+    end if
+end function
+
+// Updates the apt repositories.
+// @return {none}
+g.func.updateApt = function
+    context = g.stack[g.context.index]
+
+    aptClient = context.apt
+
+    while true
+        response = aptClient.update
+
+        if response == "" then
+            break
+        else
+            repos = g.func.getRepos
+
+            for repo in repos
+                aptClient.del_repo(repo)
+            end for
+
+            ip = g.func.getHackshop
+            
+            aptClient.add_repo(ip)
+        end if
+    end while
+end function
+
+// Updates the metaxploit and crypto libraries. Also adds a hackshop repository if none are found.
+// @return {none}
+g.func.updateLibs = function
+    installLib = function(libName, isUpgrade = 0)
+        aptClient = outer.aptClient
+        aptClient.install(libName, "/lib")
+        metaxFile = context.computer.File("/lib/metaxploit.so")
+        if metaxFile then
+            metax = include_lib("/lib/metaxploit.so")
+            lib = metax.load("/lib/" + libName)
+
+            if isUpgrade then
+                outer.output = outer.output + g.const.indent + g.g1("Updated " + libName + " to version " + lib.version) + g.const.nl
+            else
+                outer.output = outer.output + g.const.indent + g.g1("Installed " + libName + " at version " + lib.version) + g.const.nl
+            end if
+        else
+            if isUpgrade then
+                outer.output = outer.output + g.const.indent + g.g1("Updated " + libName) + g.const.nl
+            else
+                outer.output = outer.output + g.const.indent + g.g1("Installed " + libName) + g.const.nl
+            end if
+        end if
+    end function
+
+    checkRepos = function
+        hasMetax = 0
+        hasCrypto = 0
+
+        results = aptClient.search("metaxploit.so").split(char(10) + char(10))
+
+        for result in results
+            if result.split(char(10))[0] == "<b>metaxploit.so</b>" then
+                hasMetax = 1
+                break
+            end if
+        end for
+
+        results = aptClient.search("crypto.so").split(char(10) + char(10))
+
+        for result in results
+            if result.split(char(10))[0] == "<b>crypto.so</b>" then
+                hasCrypto = 1
+                break
+            end if
+        end for
+
+        return hasMetax and hasCrypto
+    end function
+
+    context = g.stack[g.context.index]
+
+    if not context.computer then
+        return g.error("No computer object found.")
+    end if
+
+    aptClient = context.apt
+
+    repos = g.func.getRepos
+
+    if repos == null then
+        return g.error("Could not update repositories.")
+    end if
+
+    output = ""
+
+    if repos.len == 0 then
+        ip = g.func.getHackshop
+
+        output = output + g.const.indent + g.y1("No repositories found. Adding " + ip + "...") + g.const.nl
+
+        aptClient.add_repo(ip)
+        aptClient.update
+    end if
+
+    while not checkRepos
+        ip = g.func.getHackshop
+
+        output = output + g.const.indent + g.y1("Current repositories are missing either crypto.so or metaxploit.so.  Adding " + ip + "...") + g.const.nl
+
+        aptClient.add_repo(ip)
+        aptClient.update
+    end while
+    
+    metax = context.computer.File("/lib/metaxploit.so")
+
+    if not metax then
+        output = output + g.const.indent + g.l2("Installing metaxploit.so...") + g.const.nl
+        installLib("metaxploit.so")
+    else
+        metaxploit = include_lib("/lib/metaxploit.so")
+        lib = metaxploit.load("/lib/metaxploit.so")
+
+        output = output + g.const.indent + g.l2("Found metaxploit.so at version " + lib.version) + g.const.nl
+
+        updateMetax = aptClient.check_upgrade(metax.path)
+        if updateMetax isa string then print(g.const.indent + g.error(updateMetax))
+
+        if updateMetax == 1 then
+            output = output + g.const.indent + g.y1("Update available for metaxploit.so...") + g.const.nl
+            installLib("metaxploit.so", 1)
+        end if
+    end if
+
+    crypto = context.computer.File("/lib/crypto.so")
+
+    if not crypto then
+        output = output + g.const.indent + g.l2("Installing crypto.so...") + g.const.nl
+        installLib("crypto.so")
+    else
+        metaxploit = include_lib("/lib/metaxploit.so")
+        lib = metaxploit.load("/lib/crypto.so")
+
+        output = output + g.const.indent + g.l2("Found crypto.so at version " + lib.version) + g.const.nl
+
+        updateCrypto = aptClient.check_upgrade(crypto.path)
+        if updateCrypto isa string then print(g.const.indent + g.error(updateCrypto))
+
+        if updateCrypto == 1 then
+            output = output + g.const.indent + g.y1("Update available for crypto.so...") + g.const.nl
+            installLib("crypto.so", 1)
+        end if
+    end if
+
+    return output
+end function
+
+// Checks random IP addresses for an open port 1542 and then returns that IP address as a string.
+// @return {string} - The IP address of the hackshop.
+g.func.getHackshop = function
+    while true
+        ip = g.func.getRandomIp
+
+        if not is_lan_ip(ip) then
+            router = g.func.getRouter(ip)
+
+            if not router then continue
+
+            ports = router.used_ports
+
+            for port in ports
+                if port.port_number == 1542 and not port.is_closed then
+                    return router.public_ip
+                end if
+            end for
+        end if
+    end while
+end function
+
+// **Loop Terminal:**
+// Establishes a persistent terminal loop by temporarily replacing /bin/bash with hex,
+// connecting back over SSH to spawn a new terminal instance, then restoring the original bash.
+// On subsequent runs (when the hex_loop marker file is detected), cleans up by restoring
+// the original binary layout.
+// @return {none}
+g.func.loop_terminal = function
+    context = g.stack["0"]
+
+    path = context.currentPath + "/hex_loop"
+    file = context.computer.File(path.replace("//", "/"))
+
+    if file then
+        // We have finished the loop and run start_terminal.  This instance is running as the default bash.
+        hex_path = file.get_content
+        g.func.silent_delete(file)
+        bash = context.computer.File("/bin/bash")
+        if not bash then return
+        if hex_path != null and hex_path != "" then
+            bash.move(parent_path(hex_path), hex_path.split("/")[-1])
+        else
+            bash.move("/bin", "hex")
+        end if
+        bash_bak = context.computer.File("/bin/bash.bak")
+        if bash_bak then
+            bash_bak.move("/bin", "bash")
+        end if
+
+        return
+    end if
+
+    print g.const.indent + g.s3("Starting terminal loop...")
+    pass = user_input(g.const.indent + g.l1("Enter the root password for this device: "), 1, 0, 0)
+
+    // This is the initial run, we have not looped the terminals yet.
+    // Back up the existing custom bash, if present, and replace it with hex.
+    context.computer.touch(context.currentPath, "hex_loop")
+    file = context.computer.File(path.replace("//", "/"))
+    file.set_content(program_path)
+
+    bash = context.computer.File("/bin/bash")
+    if bash then
+        bash.move("/bin", "bash.bak")
+    end if
+
+    hex = context.computer.File(program_path)
+    hex.move("/bin", "bash")
+
+    sh = context.shell
+
+    test = sh.connect_service(context.local, 22, "root", pass)
+    kill_ssh = 0
+    delete_ssh = 0
+
+    if test == null or test isa string then
+        ssh = include_lib("/lib/libssh.so")
+        if not ssh then
+            delete_ssh = 1
+            context.apt.install("libssh.so")
+            ssh = include_lib("/lib/libssh.so")
+        end if
+        ssh.start_service
+        kill_ssh = 1
+    end if
+
+    for _ in range(1, 40)
+        sh = sh.connect_service(context.local, 22, "root", pass)
+        if sh == null then
+            print g.error("Could not connect!")
+            return
+        else if sh isa string then
+            print g.error(sh)
+            return
+        end if
+    end for
+
+    if kill_ssh then
+        ssh.stop_service
+        if delete_ssh then
+            sshLib = context.computer.File("/lib/libssh.so")
+            g.func.silent_delete(sshLib)
+        end if
+    end if
+
+    sh.start_terminal
+end function
+
+// Sets some initial values for **HEX**.
+// @return {none}
+g.func.init = function
+    g.context.index = "0" // Must be a string
+
+    context = get_shell.createContext("home")
+
+    g.homePath = context.path
+
+    g.stack[g.context.index] = context
+
+    g.func.attach_apt("0", 1)
+end function
+
+// Loads the necessary libraries for the current context.
+// @return {none}
+g.func.loadLibs = function
+    idx = g.context.index
+    g.func.attach_apt(idx)
+    g.func.attach_metax(idx)
+    g.func.attach_crypto(idx)
+end function
+
+// Loads the library at the specified path and returns it via get_custom_object
+// @param {string} path - The path to the library.
+// @return {library} - The loaded library.
+g.func.include_lib = function(path)
+    src = "g = get_custom_object" + char(10) + "g.lib = include_lib(""" + path + """)"
+    g.func.run(src)
+    if not g.hasIndex("lib") then return null
+
+    lib = g.lib
+    g.remove("lib")
+    return lib
+end function
+
+// Creates necessary folders for the current context.
+// @return {file|null} - The created folder or null if an error occurred.
+g.func.createFolders = function
+    home = g.stack["0"]
+    context = g.stack[g.context.index]
+
+    // Create targets folder
+    p = g.homePath + "/targets"
+
+    file = home.computer.File(p)
+
+    if not file then
+        result = home.computer.create_folder(g.homePath, "targets")
+
+        if typeof(result) == "string" then
+            print g.error(result)
+            return null
+        end if
+    end if
+
+    // Create public ip folder
+    p = p + "/" + context.public
+
+    file = home.computer.File(p)
+
+    if not file then
+        result = home.computer.create_folder(g.homePath + "/targets", context.public)
+
+        if typeof(result) == "string" then
+            print g.error(result)
+            return null
+        end if
+    end if
+
+    // Create local ip folder
+    p = p + "/" + context.local
+
+    file = home.computer.File(p)
+
+    if not file then
+        result = home.computer.create_folder(g.homePath + "/targets/" + context.public, context.local)
+
+        if typeof(result) == "string" then
+            print g.error(result)
+            return null
+        end if
+
+        file = home.computer.File(p)
+    end if
+
+    return file
+end function
+
+// Retrieves the router object for the given IP address.
+// @param {string|null} ip - The IP address to get the router for, or null to get the current router.
+// @return {router|null} - The router object or null if not found.
+g.func.getRouter = function(ip = null)
+    context = g.stack[g.context.index]
+
+    if context.type != "shell" then
+        print g.error("Current context is not a shell.")
+        return
+    end if
+
+    if typeof(@ip) == "string" and is_valid_ip(ip) and not is_lan_ip(ip) then
+        src = "g = get_custom_object" + char(10) + "g.temp = get_router(""" + ip + """)"
+    else if @ip == null or is_lan_ip(ip) then
+        src = "g = get_custom_object" + char(10) + "g.temp = get_router"
+    else
+        print g.error("Invalid parameter: " + typeof(ip) + ": " + ip)
+        return
+    end if
+
+    g.func.run(src)
+
+    if not g.hasIndex("temp") then
+        print g.error("Something went wrong!!")
+        return
+    else
+        router = g.temp
+        g.remove("temp")
+        return router
+    end if
+end function
+
+// Retrieves the switch object for the given IP address.
+// @param {string} ip - The IP address to get the switch for.
+// @return {switch|null} - The switch object or null if not found.
+g.func.getSwitch = function(ip)
+    context = g.stack[g.context.index]
+
+    if context.type != "shell" then
+        print g.error("Current context is not a shell.")
+        return
+    end if
+
+    if typeof(@ip) != "string" or not is_valid_ip(ip) then
+        print g.error("Invalid parameter: " + typeof(@ip) + ": " + ip)
+        return
+    end if
+
+    src = "g = get_custom_object" + char(10) + "g.temp = get_switch(""" + ip + """)"
+
+    g.func.run(src)
+
+    if not g.hasIndex("temp") then
+        print g.error("Something went wrong!!")
+        return
+    else
+        switch = g.temp
+        g.remove("temp")
+        return switch
+    end if
+end function
+
+// Retrieves the shell object for the given user and password.
+// @param {string} user - The username.
+// @param {string} password - The password.
+// @return {shell|null} - The shell object or null if not found.
+g.func.getShell = function(user, password)
+    context = g.stack[g.context.index]
+
+    if context.type != "shell" then
+        print g.error("Current context is not a shell.")
+        return
+    end if
+
+    if typeof(@user) == "string" and typeof(@password) == "string" then
+        src = "g = get_custom_object" + char(10) + "g.temp = get_shell(""" + user + """, """ + password + """)"
+    else
+        src = "g = get_custom_object" + char(10) + "g.temp = get_shell"
+    end if
+
+    g.func.run(src)
+
+    if not g.hasIndex("temp") then
+        print g.error("Something went wrong!!")
+        return
+    else if typeof(g.temp) == "string" then
+        print g.error(g.temp)
+        g.remove("temp")
+        return
+    else if typeof(g.temp) == "shell" then
+        shell = g.temp
+        g.remove("temp")
+        return shell
+    else
+        print g.error("Something has gone wrong!!")
+        print g.error("typeof(g.temp): " + typeof(g.temp))
+        g.remove("temp")
+        return
+    end if
+end function
+
+// Runs the given source code in the current context.
+// @param {string} src - The source code to run.
+// @return {none}
+g.func.run = function(src, newTerminal = 0)
+    if not g.func.checkShell(g.context.index) then return 0
+
+    context = g.stack[g.context.index]
+
+    if typeof(@src) != "string" then
+        print g.error("Invalid parameter: " + typeof(@src))
+        return 0
+    end if
+
+    prefix = context.currentPath
+
+    if prefix == "/" then prefix = ""
+
+    file = context.computer.File(prefix + "/temp")
+
+    if not file then
+        result = context.computer.create_folder(context.currentPath, "temp")
+        if typeof(result) == "string" then print "1: " + g.error(result)
+    end if
+    
+    file = context.computer.File(prefix + "/temp/1")
+
+    if not file then
+        result = context.computer.create_folder(prefix + "/temp", "1")
+        if typeof(result) == "string" then print "2: " + g.error(result)
+    end if
+    
+    file = context.computer.File(prefix + "/temp/hex.src")
+
+    if not file then
+        result = context.computer.touch(prefix + "/temp", "hex.src")
+        if typeof(result) == "string" then print "3: " + g.error(result)
+
+        file = context.computer.File(prefix + "/temp/hex.src")
+    end if
+
+    if not file then
+        print g.error("Failed to create hex.src")
+        return 0
+    end if
+
+    result = file.set_content(src)
+    if typeof(result) == "string" then print "4: " + g.error(result)
+
+    context.shell.build(file.path, prefix + "/temp")
+    if newTerminal then
+        context.shell.launch("/usr/bin/Terminal.exe", prefix + "/temp/hex")
+        wait 2
+    else
+        context.shell.launch(prefix + "/temp/hex")
+    end if
+
+    dir = context.computer.File(prefix + "/temp")
+    if dir != null then
+        dir.move(prefix + "/temp/1", dir.name)
+    end if
+
+    return 1
+end function
+
+// Transfers a file from the current context to the home context.
+// @param {string} srcPath - The source file path.
+// @param {string} destPath - The destination file path.
+// @return {none}
+g.func.get = function(srcPath, destPath)
+    home = g.stack["0"]
+    context = g.stack[g.context.index]
+
+    if context.type != "shell" then
+        print g.error("Context is not a shell.")
+        return
+    end if
+
+    g.func.transfer(context.shell, srcPath, home.shell, destPath)
+end function
+
+// Transfers a file from the home context to the current context.
+// @param {string} srcPath - The source file path.
+// @param {string} destPath - The destination file path.
+// @return {none}
+g.func.put = function(srcPath, destPath)
+    home = g.stack["0"]
+    context = g.stack[g.context.index]
+
+    excludes = ["sudo","Terminal","Terminal.exe","Mail","Mail.exe","Map","Map.exe","Chat","Chat.exe","Settings.exe","Manual","Manual.exe","autoexec"]
+
+    if context.type != "shell" then
+        print g.error("Context is not a shell.")
+        return 0
+    end if
+
+    f = home.computer.File(srcPath)
+    f.chmod("u+rwx")
+    f.chmod("g+rwx")
+    f.chmod("o+rwx")
+
+    result = g.func.transfer(home.shell, srcPath, context.shell, destPath)
+
+    f.chmod("u-rwx")
+    f.chmod("g-rwx")
+    f.chmod("o-rwx")
+
+    if excludes.indexOf(f.name) != null then
+        f.chmod("g+x")
+    end if
+
+    return result
+end function
+
+// Transfers a file between two shells.
+// @param {shell} srcShell - The source shell.
+// @param {string} srcPath - The source file path.
+// @param {shell} destShell - The destination shell.
+// @param {string} destPath - The destination file path.
+// @return {none}
+g.func.transfer = function(srcShell, srcPath, destShell, destPath)
+    if typeof(@srcShell) != "shell" or typeof(@srcPath) != "string" or typeof(@destShell) != "shell" or typeof(@destPath) != "string" then
+        print g.error("Invalid parameter(s).")
+        return 0
+    end if
+
+    srcFile = srcShell.host_computer.File(srcPath)
+
+    if not srcFile then
+        print g.error("Invalid srcPath parameter.")
+        return 0
+    end if
+
+    if not srcFile.has_permission("r") then
+        print g.error("Cannot read source file.")
+        return 0
+    end if
+
+    destFolder = destShell.host_computer.File(destPath)
+
+    if not destFolder then
+        print g.error("Invalid destPath parameter.")
+        return 0
+    end if
+
+    if not destFolder.has_permission("w") then
+        print g.error("Cannot write to the destination path.")
+        return 0
+    end if
+
+    result = srcShell.scp(srcFile.path, destFolder.path, destShell)
+
+    if typeof(result) == "string" then
+        print g.error(result)
+
+        return 0
+    else if result == null then
+        print g.error("An unknown error occurred.")
+
+        return 0
+    end if
+
+    return 1
+end function
+
+// Uploads a library to the current context.
+// @param {string} dir - The directory containing the library.
+// @param {string} libName - The name of the library.
+// @param {string} dest - The destination path.
+// @return {number} - 1 if successful, 0 otherwise.
+g.func.putLib = function(dir, libName, dest = "/lib")
+    home = g.stack["0"]
+    context = g.stack[g.context.index]
+
+    if context.type != "shell" then
+        print g.error("Context is not a shell.")
+        return 0
+    end if
+
+    if typeof(@libName) != "string" or typeof(@dir) != "string" or typeof(@dest) != "string" then
+        print g.error("Invalid arguments.")
+        return 0
+    end if
+
+    searchName = libName.replace("\.so", "")
+
+    searchFolder = home.computer.File(dir)
+
+    if not searchFolder then
+        print g.error("Invalid directory: " + dir)
+        return 0
+    end if
+
+    libs = g.func.find(searchFolder, searchName + "*.so", "br")
+
+    if libs.len == 0 then
+        print g.error("Could not find " + libName + " in " + dir)
+        return 0
+    end if
+
+    file = libs[0]
+
+    g.func.put(file.path, dest)
+
+    filePath = (dest + "/" + file.name).replace("//", "/")
+
+    file = context.computer.File(filePath)
+
+    if not file then
+        print g.error("Could not find file at dest")
+        return 0
+    end if
+
+    result = file.move(dest, libName)
+
+    if result == 1 then return 1
+
+    if typeof(result) == "string" then
+        print g.error(result)
+    else
+        print g.error("Failed to rename file")
+    end if
+
+    return 0
+end function
+
+// Checks if the context at the given index is a shell.
+// @param {string} idx - The index to check.
+// @return {number} - 1 if the context is a shell, 0 otherwise.
+g.func.checkShell = function(idx)
+    if not typeof(@idx) == "string" then
+        print g.error("Invalid index type: " + typeof(@idx))
+        return 0
+    end if
+
+    if not g.stack.hasIndex(idx) then
+        print g.error("Stack does not contain index: " + @idx)
+        return 0
+    end if
+
+    if g.stack[idx].type != "shell" then
+        print g.error("Context is not a shell.")
+        return 0
+    end if
+
+    return 1
+end function
+
+
+// **Check Metax**
+// @description Checks if the context at the given index has a metaxploit object attached.
+// @example g.func.checkMetax(0) // Checks whether the context at index "0" has a metaxploit object attached
+// @param {string} idx - The index to check.
+// @param {number} silent - If 1, suppresses error messages.
+// @return {number} - 1 if the context is a computer, 0 otherwise.
+g.func.checkMetax = function(idx, silent = 0)
+    if not typeof(@idx) == "string" then
+        if not silent then print g.error("Invalid index type: " + typeof(@idx))
+        return 0
+    end if
+
+    if not g.stack.hasIndex(idx) then
+        if not silent then print g.error("Stack does not contain index: " + @idx)
+        return 0
+    end if
+
+    if g.stack[idx].metax == null then
+        return 0
+    end if
+
+    return 1
+end function
+
+// Checks if a valid proxy context is set in the global state.
+// @param {number} silent - If 1, suppresses error messages.
+// @return {number} - 1 if a valid proxy is configured, 0 otherwise.
+g.func.checkProxy = function(silent = 0)
+    if not g.hasIndex("proxy") then
+        if not silent then print g.error("No proxy found.")
+        return 0
+    end if
+
+    if typeof(g.proxy) != "string" or typeof(g.proxy.to_int) != "number" or not g.stack.hasIndex(g.proxy) then
+        if not silent then print g.error("Invalid proxy: " + @g.proxy)
+        return 0
+    end if
+
+    if g.stack[g.proxy].type != "shell" then 
+        if not silent then print g.error("Proxy context is not a shell.")
+        return 0
+    end if
+
+    return 1
+end function
+
+// Validates that the given value is a port number in the range 0-65535.
+// Accepts both string and number types and coerces strings to integers.
+// @param {number|string} port - The port value to validate.
+// @return {number} - 1 if the port is valid, 0 otherwise.
+g.func.checkPort = function(port)
+    port = @port
+
+    if typeof(port) == "string" then
+        if not typeof(port.to_int) == "number" then
+            print g.error("Invalid port: " + @port)
+            return 0
+        end if
+
+        port = port.to_int
+    end if
+
+    if typeof(port) != "number" or port < 0 or port > 65535 then
+        print g.error("Invalid port: " + @port)
+        return 0
+    end if
+
+    return 1
+end function
+
+// Checks if the context at the given index is a computer.
+// @param {string} idx - The index to check.
+// @return {number} - 1 if the context is a computer, 0 otherwise.
+g.func.checkComputer = function(idx)
+    if not typeof(@idx) == "string" then
+        print g.error("Invalid index type: " + typeof(@idx))
+        return 0
+    end if
+
+    if not g.stack.hasIndex(idx) then
+        print g.error("Stack does not contain index: " + @idx)
+        return 0
+    end if
+
+    if g.stack[idx].type != "computer" then
+        print g.error("Context is not a computer.")
+        return 0
+    end if
+
+    return 1
+end function
+
+// Checks if the context at the given index is a file.
+// @param {string} idx - The index to check.
+// @return {number} - 1 if the context is a file, 0 otherwise.
+g.func.checkFile = function(idx)
+    if not typeof(@idx) == "string" then
+        print g.error("Invalid index type: " + typeof(@idx))
+        return 0
+    end if
+
+    if not g.stack.hasIndex(idx) then
+        print g.error("Stack does not contain index: " + @idx)
+        return 0
+    end if
+
+    if g.stack[idx].type != "file" then
+        print g.error("Context is not a file.")
+        return 0
+    end if
+
+    return 1
+end function
+
+// Attaches the rshell library to the context at the given index.
+// Uploads librshell.so from SecureLibs if not already present on the target.
+// @param {string} idx - The index of the context.
+// @param {number} silent - If 1, suppresses status messages.
+// @return {number} - 1 if successful, 0 otherwise.
+g.func.attach_rshell = function(idx, silent = 0)
+    if not g.func.checkShell(idx) then return 0
+
+    lib = g.stack[idx].computer.File("/lib/librshell.so")
+
+    if not lib then
+        if not g.func.putLib("/root/SecureLibs", "librshell.so") then
+            print g.error("Could not upload librshell.so.")
+            return 0
+        end if
+        lib = g.stack[idx].computer.File("/lib/librshell.so")
+    end if
+
+    if not silent then print g.const.indent + g.s3("Attaching rshell lib to context...")
+
+    rshell = g.func.include_lib(lib.path)
+
+    if not rshell then
+        print g.error("Could not retrieve library via include_lib")
+        return 0
+    end if
+
+    g.stack[idx].rshell = rshell
+
+    return 1
+end function
+
+// Attaches the metaxploit library to the context at the given index.
+// @param {string} idx - The index of the context.
+// @return {number} - 1 if successful, 0 otherwise.
+g.func.attach_metax = function(idx, silent = 0)
+    if not g.func.checkShell(idx) then return 0
+
+    filePath = g.stack[idx].path + "/metaxploit.so"
+    lib = g.stack[idx].computer.File(filePath.replace("//", "/"))
+
+    if not lib then
+        filePath = g.stack[idx].currentPath + "/metaxploit.so"
+        lib = g.stack[idx].computer.File(filePath.replace("//", "/"))
+    end if
+
+    if not lib then
+        lib = g.stack[idx].computer.File("/lib/metaxploit.so")
+    end if
+
+    if not lib then
+        if not g.func.putLib("/lib", "metaxploit.so", g.stack[idx].currentPath) then
+            print g.error("Could not upload metaxploit.so.")
+            return 0
+        end if
+        lib = g.stack[idx].computer.File(filePath.replace("//", "/"))
+    end if
+
+    if not silent then print g.const.indent + g.s3("Attaching metaxploit lib to context...")
+
+    metax = g.func.include_lib(lib.path)
+
+    if not metax then
+        print g.error("Could not retrieve library via include_lib")
+        return 0
+    end if
+
+    g.stack[idx].metax = metax
+
+    return 1
+end function
+
+// Attaches the crypto library to the context at the given index.
+// @param {string} idx - The index of the context.
+// @return {number} - 1 if successful, 0 otherwise.
+g.func.attach_crypto = function(idx, silent = 0)
+    if not g.func.checkShell(idx) then return 0
+
+    filePath = g.stack[idx].path + "/crypto.so"
+    lib = g.stack[idx].computer.File(filePath.replace("//", "/"))
+
+    if not lib then
+        lib = g.stack[idx].computer.File("/lib/crypto.so")
+    end if
+
+    if not lib then
+        if not g.func.putLib("/lib", "crypto.so", g.stack[idx].path) then
+            print g.error("Could not upload crypto.so.")
+            return 0
+        end if
+        lib = g.stack[idx].computer.File(filePath.replace("//", "/"))
+    end if
+
+    if not silent then print g.const.indent + g.s3("Attaching crypto lib to context...")
+
+    crypto = g.func.include_lib(lib.path)
+
+    if not crypto then
+        print g.error("Could not retrieve library via include_lib")
+        return 0
+    end if
+
+    g.stack[idx].crypto = crypto
+
+    return 1
+end function
+
+// Attaches the aptclient library to the context at the given index.
+// @param {string} idx - The index of the context.
+// @return {number} - 1 if successful, 0 otherwise.
+g.func.attach_apt = function(idx, silent = 0)
+    if not g.func.checkShell(idx) then return 0
+
+    filePath = g.stack[idx].path + "/aptclient.so"
+    lib = g.stack[idx].computer.File(filePath.replace("//", "/"))
+
+    if not lib then
+        lib = g.stack[idx].computer.File("/lib/aptclient.so")
+    end if
+
+    if not lib then
+        if not g.func.putLib("/lib", "aptclient.so", g.stack[idx].path) then
+            print g.error("Could not upload aptclient.so.")
+            return 0
+        end if
+        lib = g.stack[idx].computer.File(filePath.replace("//", "/"))
+    end if
+
+    if not silent then print g.const.indent + g.s3("Attaching aptclient lib to context...")
+
+    aptclient = g.func.include_lib(lib.path)
+
+    if not aptclient then
+        print g.error("Could not retrieve library via include_lib")
+        return 0
+    end if
+
+    g.stack[idx].apt = aptclient
+
+    return 1
+end function
+
+// Clears all user-defined keys from the shared custom object, preserving only
+// the internal __isa and classID properties.
+// @return {none}
+g.func.clear_custom_object = function
+    for idx in get_custom_object.indexes
+        if idx == "__isa" or idx == "classID" then continue
+        get_custom_object.remove(idx)
+    end for
+end function
+
+// Restores the hackshop download directory to its default state by recompiling and
+// replacing all non-exe files under /Public/htdocs/downloads with the default binaries
+// defined in g.defaults.
+// @return {none}
+g.func.restore_shop = function
+    if not g.func.checkShell(g.context.index) then return 0
+    context = g.stack[g.context.index]
+
+    if not context.computer.File(context.currentPath).has_permission("w") then
+        print g.error("Can't write to " + context.currentPath)
+        return 0
+    end if
+
+    if not context.computer.File("/Public/htdocs/downloads") and not context.computer.File("/Public/htdocs/downloads").has_permission("w") then
+        print g.error("Can't write to /Public/htdocs/downloads")
+        return 0
+    end if
+
+    for f in context.computer.File("/Public/htdocs/downloads").get_files
+        if f.name[-3:].lower == "exe" then continue
+        print g.const.indent + g.s3("Deleting " + f.name)
+        g.func.silent_delete(f)
+    end for
+
+    context.computer.touch(context.currentPath, "hex.src")
+    file = context.computer.File(context.currentPath + "/hex.src")
+
+    for idx in g.defaults.indexes
+        print g.const.indent + g.s3("Restoring /Public/htdocs/downloads/" + idx + "...")
+        file.set_content(g.const.warning_text + g.defaults[idx])
+        context.shell.build(file.path, parent_path(file.path))
+        wait 0.5
+        bin = context.computer.File(file.path[:-4])
+        if not bin then
+            print g.error("Unable to find compiled binary at " + file.path[:-4])
+            continue
+        end if
+        
+        result = bin.move("/Public/htdocs/downloads", idx)
+        if result != 1 and result isa string then
+            print g.error(result)
+        end if
+    end for
+
+    g.func.silent_delete(file)
+end function
+
+// **Silent Delete:**
+// Deletes a file or folder by swapping it with a sacrificial system file (e.g. /boot or
+// /etc/xorg.conf) and then moving the original to that safe location, effectively removing
+// it without invoking the rm command.  Recurses into folders when deleting the root.
+// @param {file} file - The file or folder to delete.
+// @return {number} - 1 if successful, 0 otherwise.
+g.func.silent_delete = function(file)
+    if file == null then return 0
+
+    walk = function(file, path)
+        files = file.get_folders + file.get_files
+
+        for f in files
+            if f.path == path then return f
+
+            if f.is_folder then
+                temp = walk(f, path)
+                if temp != null then return temp
+            end if
+        end for
+    end function
+
+    if file.path == "/" then
+        files = file.get_files + file.get_folders
+        count = 0
+        for f in files
+            count = count + g.func.silent_delete(f)
+        end for
+        return count
+    end if
+
+    root = file
+
+    while root.path != "/"
+        root = root.parent
+    end while
+
+    original_path = file.path
+    folder = file.is_folder
+
+    if folder then
+        if original_path == "/boot" then
+            sac = walk(root, "/sys")
+        else
+            sac = walk(root, "/boot")
+        end if
+    else
+        if original_path == "/etc/xorg.conf" then
+            sac = walk(root, "/sys/config.sys")
+        else
+            sac = walk(root, "/etc/xorg.conf")
+        end if
+    end if
+
+    success = 1
+
+    result = sac.move(parent_path(original_path), file.name)
+    if result == null then
+        print g.error("Unknown Error.")
+        success = 0
+    end if
+    if result isa string then
+        print g.error(result)
+        success = 0
+    end if
+
+    file = walk(root, original_path)
+
+    if folder then
+        result = file.move("/", "boot")
+    else
+        result = file.move("/etc/", "xorg.conf")
+    end if
+
+    if result == null then
+        print g.error("Unknown Error.")
+        success = 0
+    end if
+    if result isa string then
+        print g.error(result)
+        success = 0
+    end if
+
+    return success
+end function
+
+// **Run Binary:**
+// Searches for a binary file matching the given key and launches it with the provided arguments from the current shell context.
+// If multiple binaries are found, prompts the user to select one. Returns 1 on success, 0 on failure or invalid selection.
+// @param {string} key - The name or pattern of the binary to search for.
+// @param {list<string>} args - Arguments to pass to the binary.
+// @return {number} - 1 if the binary was launched successfully, 0 otherwise.
+// @example g.func.run_binary("ls", ["-l", "/home"]) // Runs the 'ls' binary with arguments
+//
+g.func.run_binary = function(key, args)
+    idx = g.context.index
+    if g.stack[idx].type == "shell" then
+        file = g.stack[idx].computer.File("/")
+
+        binaries = g.func.find(file, key, "b")
+        binary = null
+
+        if binaries.len == 0 then
+            return 0
+        else
+            if binaries.len > 1 then
+                num = 1
+                options = ""
+                for b in binaries
+                    options = options +  "[" + num + "]" + g.const.tab*2 + b.path + g.const.nl
+                    num = num + 1
+                end for
+
+                selection = user_input("Multiple binaries found:" + g.const.nl*2 + options + g.const.nl + "Select a binary to launch: ", 0, 0, 0)
+
+                if typeof(selection.to_int) == "number" and selection.to_int > 0 and selection.to_int < num then
+                    binary = binaries[selection.to_int - 1]
+                else
+                    print(g.error("Invalid selection."))
+
+                    return 0
+                end if
+            else if binaries.len == 1 then
+                    binary = binaries[0]
+            end if
+
+            if binary != null then
+                g.stack[idx].shell.launch(binary.path, args.join(" "))
+
+                return 1
+            end if
+
+            return 0
+        end if
+    end if
+end function
+
+// Retrieves computer objects for all devices on the current network by performing a
+// buffer overflow against each discovered LAN device using the insecure library defined
+// in g.const.insecureComp.
+// @return {list<computer>} - A list of computer objects obtained via overflow, or an empty list.
+g.func.get_computers = function
+    idx = g.context.index
+    if not g.func.checkMetax(idx) and not g.func.attach_metax(idx) then return []
+
+    context = g.stack[idx]
+
+    if not get_router(context.local) then
+        print g.error("Current context is not a router.")
+        //return []
+    end if
+
+    lib = g.const.insecureComp[0].split("/")[-1]
+    ver = g.const.insecureComp[1]
+    mem = g.const.insecureComp[2]
+    value = g.const.insecureComp[3]
+
+    if context.computer.File("/lib/" + lib) == null or context.metax.load("/lib/" + lib) == null or context.metax.load("/lib/" + lib).version != ver then
+        g.tools.poison.exec
+    end if
+
+    metaLib = context.metax.load("/lib/" + lib)
+
+    devices = g.func.get_devices(context.local)
+    computers = []
+
+    for device in devices
+        print g.const.indent + g.s3("Trying memory address " + mem + " with value " + value + " in " + metaLib.lib_name + " at version " + metaLib.version)
+        comp = metaLib.overflow(mem, value, device)
+
+        if comp then computers.push(comp)
+    end for
+
+    return computers
+end function
+
+// Recursively discovers all device IP addresses reachable from the given IP, traversing
+// routers and switches.  Also fills in any gap IPs within each discovered subnet.
+// @param {string} ip - The starting LAN or public IP address.
+// @return {list<string>} - A list of all discovered device IP addresses.
+g.func.get_devices = function(ip)
+    deviceList = []
+
+    getDevices = function(router)
+        if router == null then return
+
+        ip = router.local_ip
+
+        if deviceList.indexOf(ip) == null then deviceList.push(ip)
+
+        devices = router.devices_lan_ip
+
+        for device in devices
+            if device != ip then
+                type = getType(device)
+
+                if type == "router" and deviceList.indexOf(device) == null then
+                    deviceList.push(device)
+                    getDevices(get_router(device))
+                else if type == "switch" and deviceList.indexOf(device) == null then
+                    deviceList.push(device)
+                    getDevices(get_switch(device))
+                else if type == "device" and deviceList.indexOf(device) == null then
+                    deviceList.push(device)
+                end if
+            end if
+        end for
+    end function
+
+    getType = function(ip)
+        if get_switch(ip) then return "switch"
+        if get_router(ip) then return "router"
+        return "device"
+    end function
+
+    router = get_router(ip)
+
+    if not router then
+        if is_lan_ip(ip) then
+            router = get_router
+        else
+            print g.error("Could not reach: " + ip)
+            return []
+        end if
+    end if
+
+    getDevices(router)
+
+    // Fill in gaps between discovered IPs within each subnet
+    gapList = []
+    for existingIp in deviceList
+        parts = existingIp.split("\.")
+        subnet = parts[0] + "." + parts[1] + "." + parts[2] + "."
+        lastOctet = parts[3].to_int
+        i = 1
+        while i < lastOctet
+            candidate = subnet + i
+            if deviceList.indexOf(candidate) == null and gapList.indexOf(candidate) == null then
+                gapList.push(candidate)
+            end if
+            i = i + 1
+        end while
+    end for
+
+    for gapIp in gapList
+        deviceList.push(gapIp)
+    end for
+
+    return deviceList
+end function
+
+// Scans a list of computers for files of interest and prints the results.  When type is
+// "zday", also collects mail credentials and zero-day event metadata for the network.
+// @param {list<computer>} computers - The list of computer objects to scan.
+// @param {string} type - The file category to filter by: "all", "bank", "mail", "pass", "zday", or null for default.
+// @return {none}
+g.func.network_files = function(computers, type)
+    output = []
+    credentials = {}
+    zinfo = []
+    for computer in computers
+        if type == "zday" then
+            zday = {}
+
+            temp = g.func.zday_mail(computer, credentials, zday)
+
+            if zday.hasIndex("from") then
+                zinfo.push(zday)
+            end if
+
+            if computer.get_name != "router" and computer.File("/lib/libcam.so") == null and computer.File("/lib/libsmartappliance.so") == null and temp == [] then
+                output.push(g.const.indent + g.s3(computer.local_ip) + g.r1("<pos=220>Mail File(s) Missing or Empty!!"))
+            else
+                output = output + temp
+            end if
+        else
+            output = output + g.func.interesting_files(computer, type)
+        end if
+    end for
+
+    if type == "zday" and computers.len > 0 then
+        dateStr = current_date
+        dateSegments = dateStr.split(" - ")
+        month = dateSegments[0].split("/")[1]
+        if month == "Jan" then month = "January"
+        if month == "Feb" then month = "February"
+        if month == "Mar" then month = "March"
+        if month == "Apr" then month = "April"
+        if month == "Jun" then month = "June"
+        if month == "Jul" then month = "July"
+        if month == "Aug" then month = "August"
+        if month == "Sep" then month = "September"
+        if month == "Oct" then month = "October"
+        if month == "Nov" then month = "November"
+        if month == "Dec" then month = "December"
+        year = dateSegments[0].split("/")[2]
+        ip = computers[0].public_ip
+        admin = whois(ip).split(char(10))[2].split(":")[1].trim
+        if credentials.hasIndex(admin) then
+            password = credentials[admin]
+        else
+            password = ""
+        end if
+
+        zoutput = []
+        zoutput.push("# " + month + ", " + year + " Zero Day Event")
+        zoutput.push("### Network")
+        zoutput.push(ip)
+        zoutput.push("### Debug Credentials")
+        zoutput.push("**Admin:** " + admin + " : " + password)
+
+        count = 0
+        for z in zinfo
+            count = count + 1
+            zoutput.push("**Subject:** " + z.subject)
+            zoutput.push("**From:** " + z.from + " : " + credentials[z.from])
+            zoutput.push("**To:** " + z.to + " : " + credentials[z.to])
+            if zinfo.len > 1 and count < zinfo.len then
+                zoutput.push("-----")
+            end if
+        end for
+
+        output = output + [""] + zoutput
+    end if
+
+    print output.join(char(10))
+end function
+
+// Finds all Mail.txt files on a computer, deciphers each credential, and inspects the
+// inbox for zero-day related messages.  Populates the credentials and zday maps in place.
+// @param {computer} computer - The computer object to search.
+// @param {map} credentials - A map to populate with address:password pairs found in mail files.
+// @param {map} zday - A map to populate with zero-day event fields (from, to, subject).
+// @return {list<string>} - Formatted output lines describing each mail account and inbox message.
+g.func.zday_mail = function(computer, credentials, zday)
+    mails = g.func.find(computer.File("/"), "Mail.txt", "t")
+    first = 1
+    output = []
+
+    for mail in mails
+        content = mail.get_content
+        if content == "" or content.indexOf(":") == null then continue
+        address = content.split(":")[0]
+        temp = content.split(":")[1]
+
+        if g.rt.hasIndex(temp) then
+            password = g.rt[temp]
+        else
+            g.tools.decipher.data.silent = 1
+            password = g.tools.decipher.exec([temp])[1]
+            g.tools.decipher.data.silent = 0
+        end if
+        
+        if credentials != null and credentials isa map then
+            credentials[address] = password
+        end if
+        
+        line = ""
+        if first then
+            first = 0
+            line = g.const.indent + g.s3(computer.local_ip)
+        end if
+
+        output.push(line + "<pos=220>" + g.l2(address + ":" + password))
+
+        meta = mail_login(address, password)
+
+        messages = meta.fetch
+
+        for msg in messages
+            lines = msg.split(char(10))
+            id = lines[2][8:]
+            text = meta.read(id).split(char(10))[3]
+            if lines[4][9:] == "About the company" then
+                output.push(g.r1("<pos=75>  From: " + lines[3][6:] + "<pos=500:>Subject: " + lines[4][9:]))
+                subject = "Unknown"
+                if text != null and text.indexOf("not found") == null then
+                    if text.is_match("comfortable|longer|promise|truth") then
+                        subject = "Not being taken seriously"
+                    else
+                        subject = "It's under control"
+                    end if
+                end if
+
+                if zday != null and zday isa map then
+                    if text[0] != ">" then
+                        zday["to"] = lines[3][6:]
+                        zday["from"] = address
+                    else
+                        zday["from"] = lines[3][6:]
+                        zday["to"] = address
+                    end if
+                    zday["subject"] = subject
+                end if
+            else
+                output.push(g.g2("<pos=75>  From: " + lines[3][6:] + "<pos=500:>Subject: " + lines[4][9:]))
+            end if
+        end for
+    end for
+
+    return output
+end function
+
+// Walks the full filesystem of a computer and returns formatted output lines for any
+// files of interest, filtered by the given type.  Deciphers credentials found in Mail.txt,
+// Bank.txt, and passwd files, and expands IP references from sources.txt and Browser.txt.
+// @param {computer} computer - The computer object whose filesystem to walk.
+// @param {string} type - The file category to filter by: "all", "mail", "bank", "pass", or null for default.
+// @return {list<string>} - Formatted output lines describing each interesting file found.
+g.func.interesting_files = function(computer, type)
+    ignore = ["xorg.conf", "fstab", "init.so", "kernel_module.so", "net.so", "aptclient.so", "xorg.sys", "config.sys", "network.cfg", "system.log", "cd", "ls", "ps", "pwd",
+    "ifconfig", "iwconfig", "iwlist", "cat", "rm", "mv", "cp", "ssh", "ftp", "mkdir", "rmdir", "chmod", "reboot", "whois", "sudo", "useradd", "userdel", "nslookup",
+    "build", "touch", "chown", "chgrp", "groupadd", "groupdel", "groups", "kill", "ping", "apt-get", "man", "whoami", "ln", "scp", "bash", "FileExplorer.exe", "Terminal.exe",
+    "Mail.exe", "Browser.exe", "Notepad.exe", "Settings.exe", "LogViewer.exe", "CodeEditor.exe", "ImageViewer.exe", "PDFReader.exe", "System.map", "initrd.img", "kernel.img",
+    "sshd", "sshd.conf", "ftpd", "ftpd.conf", "httpd", "httpd.conf", "smtpd", "smtpd.conf", "criminals.db", "criminald", "employees.db", "employeesd", "students.db", "studentsd",
+    "account.db", "accountsd", "camd.conf", "camd", "rshelld.conf", "rshelld", "repod.conf", "repod", "sappl.conf", "sappl", "adbd.conf", "adbd", "website.html", "kernel_router.so",
+    "libhttp.so", "libsql.so", "libssh.so", "encode.src", "decode.bin", "libsmartappliance.so", "libftp.so", "libcam.so", "Clock.exe", "libsmtp.so", "hex.src", "hex", "libtrafficnet.so"]
+
+    first = 1
+    output = []
+
+    walk = function(dir, prefix)
+        files = dir.get_folders + dir.get_files
+        files.sort
+
+        for file in files
+            if not file.is_folder then
+                if ignore.indexOf(file.name) != null then continue
+                if file.name == "passwd" and file.is_binary then continue
+                if file.name == "sources.txt" and file.get_content isa string and file.get_content.matches(g.const.ipPattern).len == 0 then continue
+                if type != "all" then
+                    if type != "mail" and file.name == "Mail.txt" then continue
+                    if type == "mail" and file.name != "Mail.txt" then continue
+                    if type != "bank" and file.name == "Bank.txt" then continue
+                    if type == "bank" and file.name != "Bank.txt" then continue
+                    if type != "pass" and file.name == "passwd" then continue
+                    if type == "pass" and file.name != "passwd" then continue
+                end if
+
+                temp = ""
+                if outer.first then
+                    outer.first = 0
+                    temp = g.const.indent + g.s3(computer.local_ip)
+                end if
+
+                if file.is_binary or file.has_permission("r") then
+                    outer.output.push(temp + "<pos=250>" + g.l2(prefix + file.name))
+                else
+                    outer.output.push(temp + "<pos=250>" + g.r1(prefix + file.name))
+                end if
+
+                if file.name == "Mail.txt" or file.name == "Bank.txt" or (file.name == "passwd" and not file.is_binary) then
+                    if file.has_permission("r") then
+                        lines = file.get_content.split(char(10))
+
+                        for line in lines
+                            if line == "" then continue
+                            parts = line.split(":")
+
+                            g.tools.decipher.data.silent = 1
+                            password = g.tools.decipher.exec([parts[1]])[1]
+                            g.tools.decipher.data.silent = 0
+
+                            if g.rt.hasIndex(parts[1]) then
+                                outer.output.push("<pos=250>" + " "*4 + g.g1(parts[0] + ":" + password, "i") + "</size>")
+                            else
+                                outer.output.push("<pos=250>" + " "*4 + g.o1(parts[0] + ":" + password, "i") + "</size>")
+                            end if
+                        end for
+                    end if
+                end if
+
+                if (file.name == "sources.txt" or file.name == "Browser.txt") and file.get_content isa string and file.has_permission("r") then
+                    ipMatches = file.get_content.matches(g.const.ipPattern)
+                    for index in ipMatches.indexes
+                        outer.output.push("<pos=250>" + " "*4 + "<size=80%>" + g.g1(ipMatches[index], "i") + "</size>")
+                    end for
+                end if
+
+                if file.name == "Map.conf" and file.has_permission("r") then
+                    content = file.get_content
+                    if content != null and content != "" and content.indexOf("accounts") != null then
+                        obj = g.func.deserialize(content)
+
+                        for account in obj.accounts
+                            outer.output.push("<pos=250>" + " "*4 + "<size=80%>" + g.g1("IP: " + account.ip + ", User: " + account.user + ", Pass: " + account.password, "i") + "</size>")
+                        end for
+                    end if
+                end if
+            else
+                walk(file, prefix + file.name + " > ")
+            end if
+        end for
+    end function
+
+    walk(computer.File("/"), "")
+
+    return output
+end function
+
+// Loads all password word lists from the passwords/ source files into the g.rt rainbow
+// table map, keyed by MD5 hash for both lowercase and title-case variants of each word.
+// @return {none}
+g.func.rt_load = function
+    import_code("passwords/1.src")
+    import_code("passwords/2.src")
+    import_code("passwords/3.src")
+    import_code("passwords/4.src")
+    import_code("passwords/5.src")
+    import_code("passwords/6.src")
+    import_code("passwords/7.src")
+
+    for line in g.p
+        words = line.split(",")
+        for pw in words
+            g.rt[md5(pw)] = pw
+            cap = pw[:1].upper + pw[1:]
+            g.rt[md5(cap)] = cap
+        end for
+    end for
+
+    g.remove("passwords")
+
+    print g.const.indent + g.s3("Loaded " + len(g.rt) + " passwords.")
+end function

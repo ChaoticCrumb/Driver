@@ -1,0 +1,349 @@
+// Registers all extension methods on built-in types (string, list, map) and on the
+// g.Target prototype.  Must be called once at startup before any extensions are used.
+// @return {none}
+g.registerExtensions = function
+    // Retrieves the user based on file permissions for different object types.
+    // @param {number} color - Whether to return the username in color (1) or not (0).
+    // @return {string} - The username.
+    map.getUser = function(color = 0)
+        type = typeof(self)
+
+        if type == "shell" then
+            return g.func.getUser(self.host_computer.File("/"), color)
+        end if
+
+        if type == "computer" then
+            return g.func.getUser(self.File("/"), color)
+        end if
+
+        if type == "file" then
+            return g.func.getUser(self, color)
+        end if
+
+        if self isa g.Target then
+            return g.func.getUser(self.file, color)
+        end if
+
+        print(g.error("Invalid object type: " + type + g.const.ni))
+
+        return g.r1("null")
+    end function
+
+    // Returns a color-formatted version of a username string.
+    // @return {string} - Red for "root", dim for "guest", or blue for all other names.
+    string.getUser = function
+        if self == "root" then return g.r1(self)
+        if self == "guest" then return g.l3(self)
+        return g.b2(self)
+    end function
+
+    // Converts a string to an integer.  If the string is a valid IPv4 address, converts it
+    // to a 32-bit integer representation; otherwise delegates to the built-in to_int.
+    // @return {number} - The integer value.
+    string.toInt = function
+        if not is_valid_ip(self) then return self.to_int
+
+        parts = self.split("\.")
+
+        result = 0
+        for i in range(0,3)
+            octet = parts[i].to_int
+
+            result = result + (octet * (256 ^ (3 - i)))
+        end for
+
+        return result
+    end function
+
+    // Retrieves the guest folder in a system from a file object.
+    // @return {folder|null} - The guest folder or null if not found.
+    map.getGuestFolder = function
+        if typeof(self) != "file" then
+            print(g.error("Invalid type: " + typeof(self)))
+            return null
+        end if
+
+        file = self.getRootFolder
+
+        for folder in file.get_folders
+            if folder.name == "home" then
+                for userFolder in folder.get_folders
+                    if userFolder.name == "guest" then return userFolder
+                end for
+                return null
+            end if
+        end for
+    end function
+
+    // Retrieves the root folder for a file object.
+    // @return {folder} - The root folder.
+    map.getRootFolder = function
+        if typeof(self) != "file" then
+            print(g.error("Invalid type: " + typeof(self)))
+            return null
+        end if
+
+        file = self
+
+        while file.path != "/"
+            file = file.parent
+        end while
+        
+        return file
+    end function
+
+    // Retrieves a folder by path for a file object.
+    // @param {string} path - The path to search for.
+    // @return {folder|null} - The found folder or null if not found.
+    map.getFolder = function(path)
+        if typeof(self) != "file" then
+            print(g.error("Invalid type: " + typeof(self)))
+            return null
+        end if
+
+        file = self.getRootFolder
+
+        return g.func.findFolder(file, path)
+    end function
+
+    // Retrieves the hostname for different object types.
+    // @param {number} color - Whether to return the hostname in color (1) or not (0).
+    // @return {string} - The hostname.
+    map.getHostname = function(color = 0)
+        type = typeof(self)
+
+        if type == "shell" then
+            if color then return g.l1(self.host_computer.get_name) else return self.host_computer.get_name
+        end if
+
+        if type == "computer" then
+            if color then return g.l1(self.get_name) else return self.get_name
+        end if
+
+        if self isa g.Target then
+            if self.type == "shell" or self.type == "computer" then
+                if color then return g.l1(self.computer.get_name) else return self.computer.get_name
+            else
+                if color then return g.l2("unknown") else return "unknown"
+            end if
+        end if
+
+        if color then return g.l2("unknown") else return "unknown"
+    end function
+
+    // Retrieves the local IP address for different object types.
+    // @param {number} color - Whether to return the IP address in color (1) or not (0).
+    // @return {string} - The local IP address.
+    map.getLocal = function(color = 0)
+        type = typeof(self)
+
+        address = "unknown"
+
+        if type == "shell" then
+            address = self.host_computer.local_ip
+        end if
+
+        if type == "computer" then
+            address = self.local_ip
+        end if
+
+        if self isa g.Target then
+            address = self.local
+        end if
+
+        if color then return g.b3(address) else return address
+    end function
+
+    // Retrieves the public IP address for different object types.
+    // @param {number} color - Whether to return the IP address in color (1) or not (0).
+    // @return {string} - The public IP address.
+    map.getPublic = function(color = 0)
+        type = typeof(self)
+
+        address = "unknown"
+
+        if type == "shell" then
+            address = self.host_computer.public_ip
+        end if
+
+        if type == "computer" then
+            address = self.public_ip
+        end if
+
+        if self isa g.Target then
+            address = self.public
+        end if
+
+        if color then return g.b3(address) else return address
+    end function
+
+    // Retrieves the type of the object (shell, computer, file).
+    // @param {number} color - Whether to return the type in color (1) or not (0).
+    // @return {string} - The type of the object.
+    map.getType = function(color = 0)
+        isTarget = 0
+
+        if self isa g.Target then
+            type = self.type
+            isTarget = 1
+        else
+            type = typeof(self)
+        end if
+
+        if type == "shell" then
+            if not isTarget then
+                procs = self.host_computer.show_procs.split(char(10))
+            else
+                procs = self.computer.show_procs.split(char(10))
+            end if
+
+            for proc in procs
+                name = proc.split(" ")[4]
+
+                if name == "Xorg" then
+                    if color then return g.g2("home") else return "home"
+                end if
+            end for
+
+            if color then return g.s3(type) else return type
+        end if
+
+        if type == "computer" then
+            if color then return g.b1("computer") else return "computer"
+        end if
+
+        if type == "file" or (self isa g.Target and self.file != null) then
+            if color then return g.l1("file") else return "file"
+        end if
+
+        print(g.error("Invalid object type: " + type + g.const.ni))
+
+        return g.r1("null")
+    end function
+
+    // Removes duplicate entries from the list in-place, preserving first-occurrence order.
+    // @return {list} - The deduplicated list.
+    list.distinct = function
+        if not self isa list then return self
+        if self == null then return self
+        seen = {}
+        i = 0
+        while i < self.len
+            key = str(self[i])
+            if seen.hasIndex(key) then
+                self.remove(i)
+            else
+                seen[key] = true
+                i = i + 1
+            end if
+        end while
+        return self
+    end function
+
+    // Returns the largest numeric value in the list.  Both number and numeric-string
+    // entries are considered.  Returns -2147483648 if the list is empty or contains no numbers.
+    // @return {number} - The maximum numeric value found.
+    list.max = function
+        max = -2147483648
+
+        if not self isa list then
+            print(g.const.indent + g.error("Invalid object type: " + typeof(self)))
+            return max
+        end if
+
+        for item in self
+            type = typeof(item)
+
+            if type == "number" and item > max then max = item
+            if type == "string" and item.to_int isa number and item.to_int > max then max = item.to_int
+        end for
+
+        return max
+    end function
+
+    // Creates a new g.Target context object from a shell, computer, or file.
+    // Sets the IPs, working directory, and user based on the object type and source string.
+    // @param {string} source - A label for how this context was obtained (e.g. "overflow", "home").
+    // @return {g.Target|null} - The populated context object, or null if the type is invalid.
+    map.createContext = function(source)
+        item = new g.Target
+        item.source = source
+        item.type = typeof(self)
+
+        if item.type == "shell" then
+            item.shell = self
+            item.computer = self.host_computer
+            item.file = self.host_computer.File("/")
+            item.public = self.host_computer.public_ip
+            item.local = self.host_computer.local_ip
+        else if item.type == "computer" then
+            item.computer = self
+            item.file = self.File("/")
+            item.public = self.public_ip
+            item.local = self.local_ip
+        else if item.type == "file" then
+            item.file = self
+        else
+            print(g.error("Invalid object type: " + item.type))
+            print(self)
+            return null
+        end if
+
+        if source == "home" then
+            item.path = "/root"
+            temp = item.computer.File(item.path)
+
+            if not temp then
+                temp = item.computer.File(current_path)
+                item.path = current_path
+            end if
+
+            item.file = temp
+        else
+            folder = g.func.findWritableFolder(item.file)
+            if folder then
+                item.path = folder.path
+                item.file = folder
+            else
+                item.path = item.file.path
+            end if
+        end if
+
+        item.user = g.func.getUser(item.file)
+
+        item.currentPath = item.path
+        return item
+    end function
+
+    // Removes a trailing occurrence of text from the string, if present.
+    // @param {string} text - The suffix to remove.
+    // @return {string} - The trimmed string, or self unchanged if the suffix was not found.
+    string.trimEnd = function(text)
+        if not self isa string then
+            print(g.error("Expected string, got " + typeof(self)))
+            return self
+        end if
+
+        if self[-1*text.len:] == text then
+            return self[:-1*text.len]
+        else
+            return self
+        end if
+    end function
+
+    // Removes a leading occurrence of text from the string, if present.
+    // @param {string} text - The prefix to remove.
+    // @return {string} - The trimmed string, or self unchanged if the prefix was not found.
+    string.trimStart = function(text)
+        if not self isa string then
+            print(g.error("Expected string, got " + typeof(self)))
+            return self
+        end if
+
+        if self[:text.len] == text then
+            return self[text.len:]
+        else
+            return self
+        end if
+    end function
+end function

@@ -1,0 +1,211 @@
+// Reads the proxy list from the "proxies" environment variable, deserializes it, and
+// stores the entries in g.proxies.  Each entry is expected to be [ip, port, user, pass].
+// Removes itself from g after running.
+// @return {none}
+g.func.initProxies = function
+    // g.proxies = [["ip address",22,"username","password"],["ip address",22,"username","password"], ..., ["ip address",22,"username","password"]]
+    g.proxies = []
+
+    temp = #envar proxies
+
+    if temp == null or temp == "" then
+        return
+    end if
+
+    items = g.func.deserialize(temp)
+
+    for item in items
+        ip = item[0]
+
+        if item[1] isa number then
+            port = item[1]
+        else if typeof(item[1]) == "string" and item[1].to_int isa number then
+            port = item[1].to_int
+        else
+            port = 22
+        end if
+
+        user = item[2]
+        pass = item[3]
+
+        g.proxies.push([ip,port,user,pass])
+    end for
+
+    g.func.remove("initProxies")
+end function
+
+// Searches for Map.conf files in the current context's filesystem and appends any proxy
+// accounts found within them to g.proxies, skipping duplicates.
+// @return {none}
+g.func.getMap = function
+    context = g.stack[g.context.index]
+
+    mapFiles = g.func.findFiles(context.file.getRootFolder, "Map.conf")
+
+    for mapFile in mapFiles
+        content = mapFile.get_content
+
+        if content == null or content == "" then continue
+
+        obj = g.func.deserialize(content)
+
+        for account in obj.accounts
+            prox = [account.ip, 22, account.user, account.password]
+
+            alreadyAdded = 0
+
+            for proxy in g.proxies
+                if proxy[0] == prox[0] and proxy[1] == prox[1] and proxy[2] == prox[2] then
+                    alreadyAdded = 1
+                    break
+                end if
+            end for
+
+            if not alreadyAdded then g.proxies.push(prox)
+        end for
+    end for
+end function
+
+// Connects to every entry in g.proxies in order, chaining each SSH connection through the
+// previous one.  The last proxy in the chain becomes the active proxy context.
+// @return {none}
+g.func.connect_proxies = function
+    if g.proxies.len == 0 then
+        print g.error("No proxies found.  Add proxies using Map.exe.")
+        return
+    end if
+    for i in range(0, g.proxies.len-1)
+        proxy = g.proxies[i]
+
+        g.func.add_proxy(proxy[0], proxy[1], proxy[2], proxy[3], i == g.proxies.len-1)
+    end for
+end function
+
+// Connects to the given SSH endpoint via the current proxy (or home context if none is set),
+// adds the resulting shell to the stack as a proxy context, and optionally attaches metaxploit
+// and corrupts the log.  When final is 1, this proxy becomes the active g.proxy.
+// @param {string} ip - The proxy server IP address.
+// @param {number} port - The SSH port to connect to.
+// @param {string} user - The SSH username.
+// @param {string} pass - The SSH password.
+// @param {number} final - If 1 (default), activates metaxploit and sets this as the proxy.
+// @return {number} - 1 if successful, 0 otherwise.
+g.func.add_proxy = function(ip, port, user, pass, final = 1)
+    if not is_valid_ip(@ip) then
+        print g.error("Invalid IP address: " + @ip)
+        return 0
+    end if
+
+    if not g.func.checkPort(@port) then return 0
+
+    if not g.func.checkProxy(1) then
+        idx = g.context.index
+    else
+        idx = g.proxy
+    end if
+
+    if not g.func.checkShell(idx) then return 0
+
+    shell = g.stack[idx].shell.connect_service(ip, port, @user, @pass)
+
+    if shell == null then
+        print g.error("Failed to connect to " + user + "@" + ip + ":" + port)
+        return 0
+    else if typeof(shell) == "string" then
+        print g.error(shell)
+        return 0
+    else if shell.classID == "ftpshell" then
+        print g.error("Expected shell, got ftpshell instead.")
+        return 0
+    end if
+
+    shell = shell.connect_service(ip, port, @user, @pass) // Looping the connection to prevent the logged IP bug thing from happening
+
+    num = g.func.max_proxy + 1
+
+    ctx = shell.createContext("proxy (" + num + ")")
+    ctx.path = "/root"
+    prox = g.stack.add(ctx, 1)
+
+    if final then
+        temp = g.context.index
+        g.context.index = prox
+        g.func.attach_metax(prox)
+        g.context.index = temp
+        metas = g.func.find(ctx.file, "metaxploit.so", "b")
+
+        for metax in metas
+            g.func.silent_delete(metax)
+        end for
+    end if
+
+    g.func.corrupt_log(prox)
+    g.proxy = prox
+
+    return 1
+end function
+
+// Designates an existing stack entry as the active proxy context.  Attaches metaxploit,
+// removes any leftover metaxploit.so files, and corrupts the log.
+// @param {string} prox - The stack index of the context to use as the proxy.
+// @return {number} - 1 if successful, 0 otherwise.
+g.func.set_proxy = function(prox)
+    if not g.func.checkShell(prox) then return 0
+
+    temp = g.context.index
+    g.context.index = prox
+    g.func.attach_metax(prox)
+    g.context.index = temp
+    metas = g.func.find(g.stack[prox].file, "metaxploit.so", "b")
+
+    for metax in metas
+        g.func.silent_delete(metax)
+    end for
+
+    g.func.corrupt_log(prox)
+    g.proxy = prox
+
+    num = g.func.max_proxy + 1
+    g.stack[prox].source = "proxy (" + num + ")"
+
+    return 1
+end function
+
+// Returns the highest proxy sequence number currently present in the stack, based on
+// "proxy (N)" source labels.  Returns 0 if no proxies exist.
+// @return {number} - The highest proxy number found.
+g.func.max_proxy = function
+    count = 0
+    for idx in g.stack.indexes
+        if typeof(idx.to_int) != "number" then continue
+
+        if g.stack[idx].source.indexOf("proxy") != null then
+            num = g.stack[idx].source.replace("proxy \(", "").replace("\)", "").to_int
+            if typeof (num) != "number" then continue
+            if num > count then count = num
+        end if
+    end for
+    return count
+end function
+
+// Corrupts the log on every proxy context in the stack.  When disconnect is 1, also
+// removes each proxy from the stack and clears the g.proxy reference.
+// @param {number} disconnect - If 1, removes proxy contexts from the stack after cleaning.
+// @return {none}
+g.func.clean_proxies = function(disconnect)
+    for i in g.stack.indexes
+        if typeof(i.to_int) != "number" then continue
+
+        if g.stack[i].source.indexOf("proxy") != null then
+            g.func.corrupt_log(i)
+            
+            if (disconnect) then
+                g.stack.remove(i)
+            end if
+        end if
+    end for
+
+    if disconnect then
+        g.remove("proxy")
+    end if
+end function

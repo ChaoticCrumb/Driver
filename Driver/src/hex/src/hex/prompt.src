@@ -1,0 +1,28 @@
+// Builds and returns the multi-line command prompt string for the current context.
+// Includes the context type, user, hostname, public/local IPs, and current path,
+// formatted and padded to fill the terminal width defined in g.const.ll.
+// @return {string} - The formatted prompt string ready to be passed to print.
+g.func.getPrompt = function()
+	idx = g.context.index
+	
+	t = g.s3("[") + g.stack[idx].getType(1) + g.s3("]")
+	u = g.s3("[") + g.stack[idx].getUser(1) + g.s3("@") + g.stack[idx].getHostname(1) + g.s3("]")
+	ips = g.s3("[") + g.stack[idx].getPublic(1) + g.s3("]—[") + g.stack[idx].getLocal(1) + g.s3("]")
+
+	nonPrinting = 398
+
+	prompt = "<pos=40>——" + u + "———" + ips + "———" + t
+
+	promptLength = prompt.len - nonPrinting
+
+	extraChars = g.const.ll - promptLength
+
+	prompt = prompt + "—"*extraChars
+	
+	prompt = prompt + "<voffset=-0.5em><pos=35>|<voffset=-1.5em><space=-0.5em><pos=35>|<voffset=-2em><pos=40>——"
+	prompt = prompt + g.s3("[") + g.l1(g.stack[idx].currentPath) + g.s3("]") + "—<voffset=-2.15em><size=175%>" + char(187) + "<size=100%><voffset=-2em> "
+
+	prompt = g.const.nl + g.s2(prompt)
+
+	return prompt
+end function

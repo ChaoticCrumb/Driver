@@ -1,0 +1,27 @@
+// Builds and returns the ASCII art HEX banner string with version number and author tag,
+// formatted using the project color palette.
+// @return {string} - The full banner string ready to be passed to print.
+g.func.getBanner = function()
+    banner = ""
+    banner = banner + g.s2("        __    __    __    __    __    __    __    __    __    __    __    __    ") + g.const.nl
+    banner = banner + g.s2("     __/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__ ") + g.const.nl
+    banner = banner + g.s2("    /  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \") + g.const.nl
+    banner = banner + g.s2("    \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/") + g.const.nl
+    banner = banner + g.s2("    /  \__/                                                              \__/  \") + g.const.nl
+    banner = banner + g.s2("    \__/  \  " + g.r1("   /\\\      /\\\    /\\\\\\\\\   /\\\       /\\\         ") + "  /  \__/") + g.const.nl
+    banner = banner + g.s2("    /  \__/  " + g.r1("   \/\\\     \/\\\   \/\\\/////   \///\\\   /\\\/         ") + "  \__/  \") + g.const.nl
+    banner = banner + g.s2("    \__/  \  " + g.r1("    \/\\\     \/\\\   \/\\\          \///\\\\\\/          ") + "  /  \__/") + g.const.nl
+    banner = banner + g.s2("    /  \__/  " + g.r1("     \/\\\\\\\\\\\\\   \/\\\\\\\        \//\\\\           ") + "  \__/  \") + g.const.nl
+    banner = banner + g.s2("    \__/  \  " + g.r1("      \/\\\///////\\\   \/\\\///          /\\\\\\         ") + "  /  \__/") + g.const.nl
+    banner = banner + g.s2("    /  \__/  " + g.r1("       \/\\\     \/\\\   \/\\\           /\\\////\\\      ") + "  \__/  \") + g.const.nl
+    banner = banner + g.s2("    \__/  \  " + g.r1("        \/\\\     \/\\\   \/\\\\\\\\\   /\\\/   \///\\\   ") + "  /  \__/") + g.const.nl
+    banner = banner + g.s2("    /  \__/  " + g.r1("         \///      \///    \/////////   \///       \///   ") + "  \__/  \") + g.const.nl
+    banner = banner + g.s2("    \__/  \                                                              /  \__/") + g.const.nl
+    banner = banner + g.s2("    /  \__/     " + g.l2(g.const.vhex) + "<pos=652>" + g.l2("by") + " " + g.b4("redit0") + "     \__/  \") + g.const.nl
+    banner = banner + g.s2("    \__/  \__    __    __    __    __    __    __    __    __    __    __/  \__/") + g.const.nl
+    banner = banner + g.s2("    /  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \") + g.const.nl
+    banner = banner + g.s2("    \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/") + g.const.nl
+    banner = banner + g.s2("       \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/   ") + g.const.nl
+
+    return banner
+end function
