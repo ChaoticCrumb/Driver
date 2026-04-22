@@ -1,0 +1,4121 @@
+BUILD_DESTINATION="/root";BUILD_RESOURCE_DESTINATION="/root/lNABZ";BUILD_AUTO_COMPILE=1;s = get_shell;c = s.host_computer;m = function(filePath, content, isNew);segments = filePath.split("/")[1 : ];fileName = segments.pop;for segment in segments;parentPath = "/" + segments[ : __segment_idx].join("/");folderName = segment;if parentPath == "/" then;folderPath = "/" + folderName;else;folderPath = parentPath + "/" + folderName;end if;folderHandle = c.File(folderPath);if folderHandle == null then;result = c.create_folder(parentPath, folderName) == 1;if result != 1 then exit("Could not create folder in """ + folderPath + """ due to: " + result);print("New folder """ + folderPath + """ got created.");folderHandle = c.File(folderPath);end if;if not folderHandle.is_folder then exit("Entity at """ + folderPath + """ is not a folder. Installation got aborted.");end for;parentPath = "/" + segments.join("/");fileEntity = c.File(filePath);if fileEntity == null then;result = c.touch(parentPath, fileName);if result != 1 then exit("Could not create file in """ + filePath + """ due to: " + result);fileEntity = c.File(filePath);end if;if fileEntity == null then exit("Unable to get file at """ + filePath + """. Installation got aborted.");if fileEntity.is_folder then exit("File at """ + filePath + """ is a folder but should be a source file. Installation got aborted.");if fileEntity.is_binary then exit("File at """ + filePath + """ is a binary but should be a source file. Installation got aborted.");if isNew then;fileEntity.set_content(content);print("New file """ + filePath + """ got created.");else;fileEntity.set_content(fileEntity.get_content + content);print("Content got appended to """ + filePath + """.");end if;end function;d = function;c.File(program_path).delete;end function;m("/root/lNABZ/hex/functions.src","ext.index]
+if not context.computer then
+print(g.error(""No computer object found.""))
+return null
+end if
+sources=context.computer.File(""/etc/apt/sources.txt"")
+if not sources then
+print(g.error(""Could not locate sources.txt""))
+return null
+end if
+if not sources.has_permission(""r"") then
+print(g.error(""Could not read sources.txt""))
+return null
+end if
+matches=sources.get_content.matches(g.const.ipPattern)
+addresses=[]
+for index in matches.indexes
+addresses.push(matches[index])
+end for
+return addresses
+end function
+g.func.getApt=function
+context=g.stack[g.context.index]
+if context.apt!=null and context.apt.classID==""aptclientLib"" then return context.apt
+if not context.computer then
+print(g.error(""No computer object found.""))
+return null
+end if
+results=g.func.find(context.computer.File(""/""),""aptclient.so"",""b"")+[0]
+libFile=results[0]
+if not libFile then
+print(g.error(""Could not locate aptclient.so""))
+return null
+end if
+aptClient=include_lib(libFile.path)
+if aptClient.classID==""aptclientLib"" then
+return aptClient
+else
+print(g.const.indent+g.error(""Invalid library file.  The file loaded is not an aptclient library. (""+aptClient.classID+"")""))
+return null
+end if
+end function
+g.func.updateApt=function
+context=g.stack[g.context.index]
+aptClient=context.apt
+while 1
+response=aptClient.update
+if response=="""" then
+break
+else
+repos=g.func.getRepos
+for repo in repos
+aptClient.del_repo(repo)
+end for
+ip=g.func.getHackshop
+aptClient.add_repo(ip)
+end if
+end while
+end function
+g.func.updateLibs=function
+installLib=function(libName,isUpgrade=0)
+aptClient=outer.aptClient
+aptClient.install(libName,""/lib"")
+metaxFile=context.computer.File(""/lib/metaxploit.so"")
+if metaxFile then
+metax=include_lib(""/lib/metaxploit.so"")
+lib=metax.load(""/lib/""+libName)
+if isUpgrade then
+outer.output=outer.output+g.const.indent+g.g1(""Updated ""+libName+"" to version ""+lib.version)+g.const.nl
+else
+outer.output=outer.output+g.const.indent+g.g1(""Installed ""+libName+"" at version ""+lib.version)+g.const.nl
+end if
+else
+if isUpgrade then
+outer.output=outer.output+g.const.indent+g.g1(""Updated ""+libName)+g.const.nl
+else
+outer.output=outer.output+g.const.indent+g.g1(""Installed ""+libName)+g.const.nl
+end if
+end if
+end function
+checkRepos=function
+hasMetax=0
+hasCrypto=0
+results=aptClient.search(""metaxploit.so"").split(char(10)+char(10))
+for result in results
+if result.split(char(10))[0]==""<b>metaxploit.so</b>"" then
+hasMetax=1
+break
+end if
+end for
+results=aptClient.search(""crypto.so"").split(char(10)+char(10))
+for result in results
+if result.split(char(10))[0]==""<b>crypto.so</b>"" then
+hasCrypto=1
+break
+end if
+end for
+return hasMetax and hasCrypto
+end function
+context=g.stack[g.context.index]
+if not context.computer then
+return g.error(""No computer object found."")
+end if
+aptClient=context.apt
+repos=g.func.getRepos
+if repos==null then
+return g.error(""Could not update repositories."")
+end if
+output=""""
+if repos.len==0 then
+ip=g.func.getHackshop
+output=output+g.const.indent+g.y1(""No repositories found. Adding ""+ip+""..."")+g.const.nl
+aptClient.add_repo(ip)
+aptClient.update
+end if
+while not checkRepos
+ip=g.func.getHackshop
+output=output+g.const.indent+g.y1(""Current repositories are missing either crypto.so or metaxploit.so.  Adding ""+ip+""..."")+g.const.nl
+aptClient.add_repo(ip)
+aptClient.update
+end while
+metax=context.computer.File(""/lib/metaxploit.so"")
+if not metax then
+output=output+g.const.indent+g.l2(""Installing metaxploit.so..."")+g.const.nl
+installLib(""metaxploit.so"")
+else
+metaxploit=include_lib(""/lib/metaxploit.so"")
+lib=metaxploit.load(""/lib/metaxploit.so"")
+output=output+g.const.indent+g.l2(""Found metaxploit.so at version ""+lib.version)+g.const.nl
+updateMetax=aptClient.check_upgrade(metax.path)
+if updateMetax isa string then print(g.const.indent+g.error(updateMetax))
+if updateMetax==1 then
+output=output+g.const.indent+g.y1(""Update available for metaxploit.so..."")+g.const.nl
+installLib(""metaxploit.so"",1)
+end if
+end if
+crypto=context.computer.File(""/lib/crypto.so"")
+if not crypto then
+output=output+g.const.indent+g.l2(""Installing crypto.so..."")+g.const.nl
+installLib(""crypto.so"")
+else
+metaxploit=include_lib(""/lib/metaxploit.so"")
+lib=metaxploit.load(""/lib/crypto.so"")
+output=output+g.const.indent+g.l2(""Found crypto.so at version ""+lib.version)+g.const.nl
+updateCrypto=aptClient.check_upgrade(crypto.path)
+if updateCrypto isa string then print(g.const.indent+g.error(updateCrypto))
+if updateCrypto==1 then
+output=output+g.const.indent+g.y1(""Update available for crypto.so..."")+g.const.nl
+installLib(""crypto.so"",1)
+end if
+end if
+return output
+end function
+g.func.getHackshop=function
+while 1
+ip=g.func.getRandomIp
+if not is_lan_ip(ip) then
+router=g.func.getRouter(ip)
+if not router then continue
+ports=router.used_ports
+for port in ports
+if port.port_number==1542 and not port.is_closed then
+return router.public_ip
+end if
+end for
+end if
+end while
+end function
+g.func.loop_terminal=function
+context=g.stack[""0""]
+path=context.currentPath+""/hex_loop""
+file=context.computer.File(path.replace(""//"",""/""))
+if file then
+hex_path=file.get_content
+g.func.silent_delete(file)
+bash=context.computer.File(""/bin/bash"")
+if not bash then return 
+if hex_path!=null and hex_path!="""" then
+bash.move(parent_path(hex_path),hex_path.split(""/"")[-1])
+else
+bash.move(""/bin"",""hex"")
+end if
+bash_bak=context.computer.File(""/bin/bash.bak"")
+if bash_bak then
+bash_bak.move(""/bin"",""bash"")
+end if
+return 
+end if
+print(g.const.indent+g.s3(""Starting terminal loop...""))
+pass=user_input(g.const.indent+g.l1(""Enter the root password for this device: ""),1,0,0)
+context.computer.touch(context.currentPath,""hex_loop"")
+file=context.computer.File(path.replace(""//"",""/""))
+file.set_content(program_path)
+bash=context.computer.File(""/bin/bash"")
+if bash then
+bash.move(""/bin"",""bash.bak"")
+end if
+hex=context.computer.File(program_path)
+hex.move(""/bin"",""bash"")
+sh=context.shell
+test=sh.connect_service(context.local,22,""root"",pass)
+kill_ssh=0
+delete_ssh=0
+if test==null or test isa string then
+ssh=include_lib(""/lib/libssh.so"")
+if not ssh then
+delete_ssh=1
+context.apt.install(""libssh.so"")
+ssh=include_lib(""/lib/libssh.so"")
+end if
+ssh.start_service
+kill_ssh=1
+end if
+for _ in range(1,40)
+sh=sh.connect_service(context.local,22,""root"",pass)
+if sh==null then
+print(g.error(""Could not connect!""))
+return 
+else if sh isa string then
+print(g.error(sh))
+return 
+end if
+end for
+if kill_ssh then
+ssh.stop_service
+if delete_ssh then
+sshLib=context.computer.File(""/lib/libssh.so"")
+g.func.silent_delete(sshLib)
+end if
+end if
+sh.start_terminal
+end function
+g.func.init=function
+g.context.index=""0""
+context=get_shell.createContext(""home"")
+g.homePath=context.path
+g.stack[g.context.index]=context
+g.func.attach_apt(""0"",1)
+end function
+g.func.loadLibs=function
+idx=g.context.index
+g.func.attach_apt(idx)
+g.func.attach_metax(idx)
+g.func.attach_crypto(idx)
+end function
+g.func.include_lib=function(path)
+src=""g = get_custom_object""+char(10)+""g.lib = include_lib(""""""+path+"""""")""
+g.func.run(src)
+if not g.hasIndex(""lib"") then return null
+lib=g.lib
+g.remove(""lib"")
+return lib
+end function
+g.func.createFolders=function
+home=g.stack[""0""]
+context=g.stack[g.context.index]
+p=g.homePath+""/targets""
+file=home.computer.File(p)
+if not file then
+result=home.computer.create_folder(g.homePath,""targets"")
+if typeof(result)==""string"" then
+print(g.error(result))
+return null
+end if
+end if
+p=p+""/""+context.public
+file=home.computer.File(p)
+if not file then
+result=home.computer.create_folder(g.homePath+""/targets"",context.public)
+if typeof(result)==""string"" then
+print(g.error(result))
+return null
+end if
+end if
+p=p+""/""+context.local
+file=home.computer.File(p)
+if not file then
+result=home.computer.create_folder(g.homePath+""/targets/""+context.public,context.local)
+if typeof(result)==""string"" then
+print(g.error(result))
+return null
+end if
+file=home.computer.File(p)
+end if
+return file
+end function
+g.func.getRouter=function(ip=null)
+context=g.stack[g.context.index]
+if context.type!=""shell"" then
+print(g.error(""Current context is not a shell.""))
+return 
+end if
+if typeof(@ip)==""string"" and is_valid_ip(ip) and not is_lan_ip(ip) then
+src=""g = get_custom_object""+char(10)+""g.temp = get_router(""""""+ip+"""""")""
+else if @ip==null or is_lan_ip(ip) then
+src=""g = get_custom_object""+char(10)+""g.temp = get_router""
+else
+print(g.error(""Invalid parameter: ""+typeof(ip)+"": ""+ip))
+return 
+end if
+g.func.run(src)
+if not g.hasIndex(""temp"") then
+print(g.error(""Something went wrong!!""))
+return 
+else
+router=g.temp
+g.remove(""temp"")
+return router
+end if
+end function
+g.func.getSwitch=function(ip)
+context=g.stack[g.context.index]
+if context.type!=""shell"" then
+print(g.error(""Current context is not a shell.""))
+return 
+end if
+if typeof(@ip)!=""string"" or not is_valid_ip(ip) then
+print(g.error(""Invalid parameter: ""+typeof(@ip)+"": ""+ip))
+return 
+end if
+src=""g = get_custom_object""+char(10)+""g.temp = get_switch(""""""+ip+"""""")""
+g.func.run(src)
+if not g.hasIndex(""temp"") then
+print(g.error(""Something went wrong!!""))
+return 
+else
+switch=g.temp
+g.remove(""temp"")
+return switch
+end if
+end function
+g.func.getShell=function(user,password)
+context=g.stack[g.context.index]
+if context.type!=""shell"" then
+print(g.error(""Current context is not a shell.""))
+return 
+end if
+if typeof(@user)==""string"" and typeof(@password)==""string"" then
+src=""g = get_custom_object""+char(10)+""g.temp = get_shell(""""""+user+"""""", """"""+password+"""""")""
+else
+src=""g = get_custom_object""+char(10)+""g.temp = get_shell""
+end if
+g.func.run(src)
+if not g.hasIndex(""temp"") then
+print(g.error(""Something went wrong!!""))
+return 
+else if typeof(g.temp)==""string"" then
+print(g.error(g.temp))
+g.remove(""temp"")
+return 
+else if typeof(g.temp)==""shell"" then
+shell=g.temp
+g.remove(""temp"")
+return shell
+else
+print(g.error(""Something has gone wrong!!""))
+print(g.error(""typeof(g.temp): ""+typeof(g.temp)))
+g.remove(""temp"")
+return 
+end if
+end function
+g.func.run=function(src,newTerminal=0)
+if not g.func.checkShell(g.context.index) then return 0
+context=g.stack[g.context.index]
+if typeof(@src)!=""string"" then
+print(g.error(""Invalid parameter: ""+typeof(@src)))
+return 0
+end if
+prefix=context.currentPath
+if prefix==""/"" then prefix=""""
+file=context.computer.File(prefix+""/temp"")
+if not file then
+result=context.computer.create_folder(context.currentPath,""temp"")
+if typeof(result)==""string"" then print(""1: ""+g.error(result))
+end if
+file=context.computer.File(prefix+""/temp/1"")
+if not file then
+result=context.computer.create_folder(prefix+""/temp"",""1"")
+if typeof(result)==""string"" then print(""2: ""+g.error(result))
+end if
+file=context.computer.File(prefix+""/temp/hex.src"")
+if not file then
+result=context.computer.touch(prefix+""/temp"",""hex.src"")
+if typeof(result)==""string"" then print(""3: ""+g.error(result))
+file=context.computer.File(prefix+""/temp/hex.src"")
+end if
+if not file then
+print(g.error(""Failed to create hex.src""))
+return 0
+end if
+result=file.set_content(src)
+if typeof(result)==""string"" then print(""4: ""+g.error(result))
+context.shell.build(file.path,prefix+""/temp"")
+if newTerminal then
+context.shell.launch(""/usr/bin/Terminal.exe"",prefix+""/temp/hex"")
+wait(2)
+else
+context.shell.launch(prefix+""/temp/hex"")
+end if
+dir=context.computer.File(prefix+""/temp"")
+if dir!=null then
+dir.move(prefix+""/temp/1"",dir.name)
+end if
+return 1
+end function
+g.func.get=function(srcPath,destPath)
+home=g.stack[""0""]
+context=g.stack[g.context.index]
+if context.type!=""shell"" then
+print(g.error(""Context is not a shell.""))
+return 
+end if
+g.func.transfer(context.shell,srcPath,home.shell,destPath)
+end function
+g.func.put=function(srcPath,destPath)
+home=g.stack[""0""]
+context=g.stack[g.context.index]
+excludes=[""sudo"",""Terminal"",""Terminal.exe"",""Mail"",""Mail.exe"",""Map"",""Map.exe"",""Chat"",""Chat.exe"",""Settings.exe"",""Manual"",""Manual.exe"",""autoexec""]
+if context.type!=""shell"" then
+print(g.error(""Context is not a shell.""))
+return 0
+end if
+f=home.computer.File(srcPath)
+f.chmod(""u+rwx"")
+f.chmod(""g+rwx"")
+f.chmod(""o+rwx"")
+result=g.func.transfer(home.shell,srcPath,context.shell,destPath)
+f.chmod(""u-rwx"")
+f.chmod(""g-rwx"")
+f.chmod(""o-rwx"")
+if excludes.indexOf(f.name)!=null then
+f.chmod(""g+x"")
+end if
+return result
+end function
+g.func.transfer=function(srcShell,srcPath,destShell,destPath)
+if typeof(@srcShell)!=""shell"" or typeof(@srcPath)!=""string"" or typeof(@destShell)!=""shell"" or typeof(@destPath)!=""string"" then
+print(g.error(""Invalid parameter(s).""))
+return 0
+end if
+srcFile=srcShell.host_computer.File(srcPath)
+if not srcFile then
+print(g.error(""Invalid srcPath parameter.""))
+return 0
+end if
+if not srcFile.has_permission(""r"") then
+print(g.error(""Cannot read source file.""))
+return 0
+end if
+destFolder=destShell.host_computer.File(destPath)
+if not destFolder then
+print(g.error(""Invalid destPath parameter.""))
+return 0
+end if
+if not destFolder.has_permission(""w"") then
+print(g.error(""Cannot write to the destination path.""))
+return 0
+end if
+result=srcShell.scp(srcFile.path,destFolder.path,destShell)
+if typeof(result)==""string"" then
+print(g.error(result))
+return 0
+else if result==null then
+print(g.error(""An unknown error occurred.""))
+return 0
+end if
+return 1
+end function
+g.func.putLib=function(dir,libName,dest=""/lib"")
+home=g.stack[""0""]
+context=g.stack[g.context.index]
+if context.type!=""shell"" then
+print(g.error(""Context is not a shell.""))
+return 0
+end if
+if typeof(@libName)!=""string"" or typeof(@dir)!=""string"" or typeof(@dest)!=""string"" then
+print(g.error(""Invalid arguments.""))
+return 0
+end if
+searchName=libName.replace(""\.so"","""")
+searchFolder=home.computer.File(dir)
+if not searchFolder then
+print(g.error(""Invalid directory: ""+dir))
+return 0
+end if
+libs=g.func.find(searchFolder,searchName+""*.so"",""br"")
+if libs.len==0 then
+print(g.error(""Could not find ""+libName+"" in ""+dir))
+return 0
+end if
+file=libs[0]
+g.func.put(file.path,dest)
+filePath=(dest+""/""+file.name).replace(""//"",""/"")
+file=context.computer.File(filePath)
+if not file then
+print(g.error(""Could not find file at dest""))
+return 0
+end if
+result=file.move(dest,libName)
+if result==1 then return 1
+if typeof(result)==""string"" then
+print(g.error(result))
+else
+print(g.error(""Failed to rename file""))
+end if
+return 0
+end function
+g.func.checkShell=function(idx)
+if not typeof(@idx)==""string"" then
+print(g.error(""Invalid index type: ""+typeof(@idx)))
+return 0
+end if
+if not g.stack.hasIndex(idx) then
+print(g.error(""Stack does not contain index: ""+@idx))
+return 0
+end if
+if g.stack[idx].type!=""shell"" then
+print(g.error(""Context is not a shell.""))
+return 0
+end if
+return 1
+end function
+g.func.checkMetax=function(idx,silent=0)
+if not typeof(@idx)==""string"" then
+if not silent then print(g.error(""Invalid index type: ""+typeof(@idx)))
+return 0
+end if
+if not g.stack.hasIndex(idx) then
+if not silent then print(g.error(""Stack does not contain index: ""+@idx))
+return 0
+end if
+if g.stack[idx].metax==null then
+return 0
+end if
+return 1
+end function
+g.func.checkProxy=function(silent=0)
+if not g.hasIndex(""proxy"") then
+if not silent then print(g.error(""No proxy found.""))
+return 0
+end if
+if typeof(g.proxy)!=""string"" or typeof(g.proxy.to_int)!=""number"" or not g.stack.hasIndex(g.proxy) then
+if not silent then print(g.error(""Invalid proxy: ""+@g.proxy))
+return 0
+end if
+if g.stack[g.proxy].type!=""shell"" then
+if not silent then print(g.error(""Proxy context is not a shell.""))
+return 0
+end if
+return 1
+end function
+g.func.checkPort=function(port)
+port=@port
+if typeof(port)==""string"" then
+if not typeof(port.to_int)==""number"" then
+print(g.error(""Invalid port: ""+@port))
+return 0
+end if
+port=port.to_int
+end if
+if typeof(port)!=""number"" or port<0 or port>65535 then
+print(g.error(""Invalid port: ""+@port))
+return 0
+end if
+return 1
+end function
+g.func.checkComputer=function(idx)
+if not typeof(@idx)==""string"" then
+print(g.error(""Invalid index type: ""+typeof(@idx)))
+return 0
+end if
+if not g.stack.hasIndex(idx) then
+print(g.error(""Stack does not contain index: ""+@idx))
+return 0
+end if
+if g.stack[idx].type!=""computer"" then
+print(g.error(""Context is not a computer.""))
+return 0
+end if
+return 1
+end function
+g.func.checkFile=function(idx)
+if not typeof(@idx)==""string"" then
+print(g.error(""Invalid index type: ""+typeof(@idx)))
+return 0
+end if
+if not g.stack.hasIndex(idx) then
+print(g.error(""Stack does not contain index: ""+@idx))
+return 0
+end if
+if g.stack[idx].type!=""file"" then
+print(g.error(""Context is not a file.""))
+return 0
+end if
+return 1
+end function
+g.func.attach_rshell=function(idx,silent=0)
+if not g.func.checkShell(idx) then return 0
+lib=g.stack[idx].computer.File(""/lib/librshell.so"")
+if not lib then
+if not g.func.putLib(""/root/SecureLibs"",""librshell.so"") then
+print(g.error(""Could not upload librshell.so.""))
+return 0
+end if
+lib=g.stack[idx].computer.File(""/lib/librshell.so"")
+end if
+if not silent then print(g.const.indent+g.s3(""Attaching rshell lib to context...""))
+rshell=g.func.include_lib(lib.path)
+if not rshell then
+print(g.error(""Could not retrieve library via include_lib""))
+return 0
+end if
+g.stack[idx].rshell=rshell
+return 1
+end function
+g.func.attach_metax=function(idx,silent=0)
+if not g.func.checkShell(idx) then return 0
+filePath=g.stack[idx].path+""/metaxploit.so""
+lib=g.stack[idx].computer.File(filePath.replace(""//"",""/""))
+if not lib then
+filePath=g.stack[idx].currentPath+""/metaxploit.so""
+lib=g.stack[idx].computer.File(filePath.replace(""//"",""/""))
+end if
+if not lib then
+lib=g.stack[idx].computer.File(""/lib/metaxploit.so"")
+end if
+if not lib then
+if not g.func.putLib(""/lib"",""metaxploit.so"",g.stack[idx].currentPath) then
+print(g.error(""Could not upload metaxploit.so.""))
+return 0
+end if
+lib=g.stack[idx].computer.File(filePath.replace(""//"",""/""))
+end if
+if not silent then print(g.const.indent+g.s3(""Attaching metaxploit lib to context...""))
+metax=g.func.include_lib(lib.path)
+if not metax then
+print(g.error(""Could not retrieve library via include_lib""))
+return 0
+end if
+g.stack[idx].metax=metax
+return 1
+end function
+g.func.attach_crypto=function(idx,silent=0)
+if not g.func.checkShell(idx) then return 0
+filePath=g.stack[idx].path+""/crypto.so""
+lib=g.stack[idx].computer.File(filePath.replace(""//"",""/""))
+if not lib then
+lib=g.stack[idx].computer.File(""/lib/crypto.so"")
+end if
+if not lib then
+if not g.func.putLib(""/lib"",""crypto.so"",g.stack[idx].path) then
+print(g.error(""Could not upload crypto.so.""))
+return 0
+end if
+lib=g.stack[idx].computer.File(filePath.replace(""//"",""/""))
+end if
+if not silent then print(g.const.indent+g.s3(""Attaching crypto lib to context...""))
+crypto=g.func.include_lib(lib.path)
+if not crypto then
+print(g.error(""Could not retrieve library via include_lib""))
+return 0
+end if
+g.stack[idx].crypto=crypto
+return 1
+end function
+g.func.attach_apt=function(idx,silent=0)
+if not g.func.checkShell(idx) then return 0
+filePath=g.stack[idx].path+""/aptclient.so""
+lib=g.stack[idx].computer.File(filePath.replace(""//"",""/""))
+if not lib then
+lib=g.stack[idx].computer.File(""/lib/aptclient.so"")
+end if
+if not lib then
+if not g.func.putLib(""/lib"",""aptclient.so"",g.stack[idx].path) then
+print(g.error(""Could not upload aptclient.so.""))
+return 0
+end if
+lib=g.stack[idx].computer.File(filePath.replace(""//"",""/""))
+end if
+if not silent then print(g.const.indent+g.s3(""Attaching aptclient lib to context...""))
+aptclient=g.func.include_lib(lib.path)
+if not aptclient then
+print(g.error(""Could not retrieve library via include_lib""))
+return 0
+end if
+g.stack[idx].apt=aptclient
+return 1
+end function
+g.func.clear_custom_object=function
+for idx in get_custom_object.indexes
+if idx==""__isa"" or idx==""classID"" then continue
+get_custom_object.remove(idx)
+end for
+end function
+g.func.restore_shop=function
+if not g.func.checkShell(g.context.index) then return 0
+context=g.stack[g.context.index]
+if not context.computer.File(context.currentPath).has_permission(""w"") then
+print(g.error(""Can't write to ""+context.currentPath))
+return 0
+end if
+if not context.computer.File(""/Public/htdocs/downloads"") and not context.computer.File(""/Public/htdocs/downloads"").has_permission(""w"") then
+print(g.error(""Can't write to /Public/htdocs/downloads""))
+return 0
+end if
+for f in context.computer.File(""/Public/htdocs/downloads"").get_files
+if f.name[-3:].lower==""exe"" then continue
+print(g.const.indent+g.s3(""Deleting ""+f.name))
+g.func.silent_delete(f)
+end for
+context.computer.touch(context.currentPath,""hex.src"")
+file=context.computer.File(context.currentPath+""/hex.src"")
+for idx in g.defaults.indexes
+print(g.const.indent+g.s3(""Restoring /Public/htdocs/downloads/""+idx+""...""))
+file.set_content(g.const.warning_text+g.defaults[idx])
+context.shell.build(file.path,parent_path(file.path))
+wait(0.5)
+bin=context.computer.File(file.path[:-4])
+if not bin then
+print(g.error(""Unable to find compiled binary at ""+file.path[:-4]))
+continue
+end if
+result=bin.move(""/Public/htdocs/downloads"",idx)
+if result!=1 and result isa string then
+print(g.error(result))
+end if
+end for
+g.func.silent_delete(file)
+end function
+g.func.silent_delete=function(file)
+if file==null then return 0
+walk=function(file,path)
+files=file.get_folders+file.get_files
+for f in files
+if f.path==path then return f
+if f.is_folder then
+temp=walk(f,path)
+if temp!=null then return temp
+end if
+end for
+end function
+if file.path==""/"" then
+files=file.get_files+file.get_folders
+count=0
+for f in files
+count=count+g.func.silent_delete(f)
+end for
+return count
+end if
+root=file
+while root.path!=""/""
+root=root.parent
+end while
+original_path=file.path
+folder=file.is_folder
+if folder then
+if original_path==""/boot"" then
+sac=walk(root,""/sys"")
+else
+sac=walk(root,""/boot"")
+end if
+else
+if original_path==""/etc/xorg.conf"" then
+sac=walk(root,""/sys/config.sys"")
+else
+sac=walk(root,""/etc/xorg.conf"")
+end if
+end if
+success=1
+result=sac.move(parent_path(original_path),file.name)
+if result==null then
+print(g.error(""Unknown Error.""))
+success=0
+end if
+if result isa string then
+print(g.error(result))
+success=0
+end if
+file=walk(root,original_path)
+if folder then
+result=file.move(""/"",""boot"")
+else
+result=file.move(""/etc/"",""xorg.conf"")
+end if
+if result==null then
+print(g.error(""Unknown Error.""))
+success=0
+end if
+if result isa string then
+print(g.error(result))
+success=0
+end if
+return success
+end function
+g.func.run_binary=function(key,args)
+idx=g.context.index
+if g.stack[idx].type==""shell"" then
+file=g.stack[idx].computer.File(""/"")
+binaries=g.func.find(file,key,""b"")
+binary=null
+if binaries.len==0 then
+return 0
+else
+if binaries.len>1 then
+num=1
+options=""""
+for b in binaries
+options=options+""[""+num+""]""+g.const.tab*2+b.path+g.const.nl
+num=num+1
+end for
+selection=user_input(""Multiple binaries found:""+g.const.nl*2+options+g.const.nl+""Select a binary to launch: "",0,0,0)
+if typeof(selection.to_int)==""number"" and selection.to_int>0 and selection.to_int<num then
+binary=binaries[selection.to_int-1]
+else
+print(g.error(""Invalid selection.""))
+return 0
+end if
+else if binaries.len==1 then
+binary=binaries[0]
+end if
+if binary!=null then
+g.stack[idx].shell.launch(binary.path,args.join("" ""))
+return 1
+end if
+return 0
+end if
+end if
+end function
+g.func.get_computers=function
+idx=g.context.index
+if not g.func.checkMetax(idx) and not g.func.attach_metax(idx) then return []
+context=g.stack[idx]
+if not get_router(context.local) then
+print(g.error(""Current context is not a router.""))
+end if
+lib=g.const.insecureComp[0].split(""/"")[-1]
+ver=g.const.insecureComp[1]
+mem=g.const.insecureComp[2]
+value=g.const.insecureComp[3]
+if context.computer.File(""/lib/""+lib)==null or context.metax.load(""/lib/""+lib)==null or context.metax.load(""/lib/""+lib).version!=ver then
+g.tools.poison.exec
+end if
+metaLib=context.metax.load(""/lib/""+lib)
+devices=g.func.get_devices(context.local)
+computers=[]
+for device in devices
+print(g.const.indent+g.s3(""Trying memory address ""+mem+"" with value ""+value+"" in ""+metaLib.lib_name+"" at version ""+metaLib.version))
+comp=metaLib.overflow(mem,value,device)
+if comp then computers.push(comp)
+end for
+return computers
+end function
+g.func.get_devices=function(ip)
+deviceList=[]
+getDevices=function(router)
+if router==null then return 
+ip=router.local_ip
+if deviceList.indexOf(ip)==null then deviceList.push(ip)
+devices=router.devices_lan_ip
+for device in devices
+if device!=ip then
+type=getType(device)
+if type==""router"" and deviceList.indexOf(device)==null then
+deviceList.push(device)
+getDevices(get_router(device))
+else if type==""switch"" and deviceList.indexOf(device)==null then
+deviceList.push(device)
+getDevices(get_switch(device))
+else if type==""device"" and deviceList.indexOf(device)==null then
+deviceList.push(device)
+end if
+end if
+end for
+end function
+getType=function(ip)
+if get_switch(ip) then return ""switch""
+if get_router(ip) then return ""router""
+return ""device""
+end function
+router=get_router(ip)
+if not router then
+if is_lan_ip(ip) then
+router=get_router
+else
+print(g.error(""Could not reach: ""+ip))
+return []
+end if
+end if
+getDevices(router)
+gapList=[]
+for existingIp in deviceList
+parts=existingIp.split(""\."")
+subnet=parts[0]+"".""+parts[1]+"".""+parts[2]+"".""
+lastOctet=parts[3].to_int
+i=1
+while i<lastOctet
+candidate=subnet+i
+if deviceList.indexOf(candidate)==null and gapList.indexOf(candidate)==null then
+gapList.push(candidate)
+end if
+i=i+1
+end while
+end for
+for gapIp in gapList
+deviceList.push(gapIp)
+end for
+return deviceList
+end function
+g.func.network_files=function(computers,type)
+output=[]
+credentials={}
+zinfo=[]
+for computer in computers
+if type==""zday"" then
+zday={}
+temp=g.func.zday_mail(computer,credentials,zday)
+if zday.hasIndex(""from"") then
+zinfo.push(zday)
+end if
+if computer.get_name!=""router"" and computer.File(""/lib/libcam.so"")==null and computer.File(""/lib/libsmartappliance.so"")==null and temp==[] then
+output.push(g.const.indent+g.s3(computer.local_ip)+g.r1(""<pos=220>Mail File(s) Missing or Empty!!""))
+else
+output=output+temp
+end if
+else
+output=output+g.func.interesting_files(computer,type)
+end if
+end for
+if type==""zday"" and computers.len>0 then
+dateStr=current_date
+dateSegments=dateStr.split("" - "")
+month=dateSegments[0].split(""/"")[1]
+if month==""Jan"" then month=""January""
+if month==""Feb"" then month=""February""
+if month==""Mar"" then month=""March""
+if month==""Apr"" then month=""April""
+if month==""Jun"" then month=""June""
+if month==""Jul"" then month=""July""
+if month==""Aug"" then month=""August""
+if month==""Sep"" then month=""September""
+if month==""Oct"" then month=""October""
+if month==""Nov"" then month=""November""
+if month==""Dec"" then month=""December""
+year=dateSegments[0].split(""/"")[2]
+ip=computers[0].public_ip
+admin=whois(ip).split(char(10))[2].split("":"")[1].trim
+if credentials.hasIndex(admin) then
+password=credentials[admin]
+else
+password=""""
+end if
+zoutput=[]
+zoutput.push(""# ""+month+"", ""+year+"" Zero Day Event"")
+zoutput.push(""### Network"")
+zoutput.push(ip)
+zoutput.push(""### Debug Credentials"")
+zoutput.push(""**Admin:** ""+admin+"" : ""+password)
+count=0
+for z in zinfo
+count=count+1
+zoutput.push(""**Subject:** ""+z.subject)
+zoutput.push(""**From:** ""+z.from+"" : ""+credentials[z.from])
+zoutput.push(""**To:** ""+z.to+"" : ""+credentials[z.to])
+if zinfo.len>1 and count<zinfo.len then
+zoutput.push(""-----"")
+end if
+end for
+output=output+[""""]+zoutput
+end if
+print(output.join(char(10)))
+end function
+g.func.zday_mail=function(computer,credentials,zday)
+mails=g.func.find(computer.File(""/""),""Mail.txt"",""t"")
+first=1
+output=[]
+for mail in mails
+content=mail.get_content
+if content=="""" or content.indexOf("":"")==null then continue
+address=content.split("":"")[0]
+temp=content.split("":"")[1]
+if g.rt.hasIndex(temp) then
+password=g.rt[temp]
+else
+g.tools.decipher.data.silent=1
+password=g.tools.decipher.exec([temp])[1]
+g.tools.decipher.data.silent=0
+end if
+if credentials!=null and credentials isa map then
+credentials[address]=password
+end if
+line=""""
+if first then
+first=0
+line=g.const.indent+g.s3(computer.local_ip)
+end if
+output.push(line+""<pos=220>""+g.l2(address+"":""+password))
+meta=mail_login(address,password)
+messages=meta.fetch
+for msg in messages
+lines=msg.split(char(10))
+id=lines[2][8:]
+text=meta.read(id).split(char(10))[3]
+if lines[4][9:]==""About the company"" then
+output.push(g.r1(""<pos=75>  From: ""+lines[3][6:]+""<pos=500:>Subject: ""+lines[4][9:]))
+subject=""Unknown""
+if text!=null and text.indexOf(""not found"")==null then
+if text.is_match(""comfortable|longer|promise|truth"") then
+subject=""Not being taken seriously""
+else
+subject=""It's under control""
+end if
+end if
+if zday!=null and zday isa map then
+if text[0]!="">"" then
+zday[""to""]=lines[3][6:]
+zday[""from""]=address
+else
+zday[""from""]=lines[3][6:]
+zday[""to""]=address
+end if
+zday[""subject""]=subject
+end if
+else
+output.push(g.g2(""<pos=75>  From: ""+lines[3][6:]+""<pos=500:>Subject: ""+lines[4][9:]))
+end if
+end for
+end for
+return output
+end function
+g.func.interesting_files=function(computer,type)
+ignore=[""xorg.conf"",""fstab"",""init.so"",""kernel_module.so"",""net.so"",""aptclient.so"",""xorg.sys"",""config.sys"",""network.cfg"",""system.log"",""cd"",""ls"",""ps"",""pwd"",""ifconfig"",""iwconfig"",""iwlist"",""cat"",""rm"",""mv"",""cp"",""ssh"",""ftp"",""mkdir"",""rmdir"",""chmod"",""reboot"",""whois"",""sudo"",""useradd"",""userdel"",""nslookup"",""build"",""touch"",""chown"",""chgrp"",""groupadd"",""groupdel"",""groups"",""kill"",""ping"",""apt-get"",""man"",""whoami"",""ln"",""scp"",""bash"",""FileExplorer.exe"",""Terminal.exe"",""Mail.exe"",""Browser.exe"",""Notepad.exe"",""Settings.exe"",""LogViewer.exe"",""CodeEditor.exe"",""ImageViewer.exe"",""PDFReader.exe"",""System.map"",""initrd.img"",""kernel.img"",""sshd"",""sshd.conf"",""ftpd"",""ftpd.conf"",""httpd"",""httpd.conf"",""smtpd"",""smtpd.conf"",""criminals.db"",""criminald"",""employees.db"",""employeesd"",""students.db"",""studentsd"",""account.db"",""accountsd"",""camd.conf"",""camd"",""rshelld.conf"",""rshelld"",""repod.conf"",""repod"",""sappl.conf"",""sappl"",""adbd.conf"",""adbd"",""website.html"",""kernel_router.so"",""libhttp.so"",""libsql.so"",""libssh.so"",""encode.src"",""decode.bin"",""libsmartappliance.so"",""libftp.so"",""libcam.so"",""Clock.exe"",""libsmtp.so"",""hex.src"",""hex"",""libtrafficnet.so""]
+first=1
+output=[]
+walk=function(dir,prefix)
+files=dir.get_folders+dir.get_files
+files.sort
+for file in files
+if not file.is_folder then
+if ignore.indexOf(file.name)!=null then continue
+if file.name==""passwd"" and file.is_binary then continue
+if file.name==""sources.txt"" and file.get_content isa string and file.get_content.matches(g.const.ipPattern).len==0 then continue
+if type!=""all"" then
+if type!=""mail"" and file.name==""Mail.txt"" then continue
+if type==""mail"" and file.name!=""Mail.txt"" then continue
+if type!=""bank"" and file.name==""Bank.txt"" then continue
+if type==""bank"" and file.name!=""Bank.txt"" then continue
+if type!=""pass"" and file.name==""passwd"" then continue
+if type==""pass"" and file.name!=""passwd"" then continue
+end if
+temp=""""
+if outer.first then
+outer.first=0
+temp=g.const.indent+g.s3(computer.local_ip)
+end if
+if file.is_binary or file.has_permission(""r"") then
+outer.output.push(temp+""<pos=250>""+g.l2(prefix+file.name))
+else
+outer.output.push(temp+""<pos=250>""+g.r1(prefix+file.name))
+end if
+if file.name==""Mail.txt"" or file.name==""Bank.txt"" or (file.name==""passwd"" and not file.is_binary) then
+if file.has_permission(""r"") then
+lines=file.get_content.split(char(10))
+for line in lines
+if line=="""" then continue
+parts=line.split("":"")
+g.tools.decipher.data.silent=1
+password=g.tools.decipher.exec([parts[1]])[1]
+g.tools.decipher.data.silent=0
+if g.rt.hasIndex(parts[1]) then
+outer.output.push(""<pos=250>""+"" ""*4+g.g1(parts[0]+"":""+password,""i"")+""</size>"")
+else
+outer.output.push(""<pos=250>""+"" ""*4+g.o1(parts[0]+"":""+password,""i"")+""</size>"")
+end if
+end for
+end if
+end if
+if (file.name==""sources.txt"" or file.name==""Browser.txt"") and file.get_content isa string and file.has_permission(""r"") then
+ipMatches=file.get_content.matches(g.const.ipPattern)
+for index in ipMatches.indexes
+outer.output.push(""<pos=250>""+"" ""*4+""<size=80%>""+g.g1(ipMatches[index],""i"")+""</size>"")
+end for
+end if
+if file.name==""Map.conf"" and file.has_permission(""r"") then
+content=file.get_content
+if content!=null and content!="""" and content.indexOf(""accounts"")!=null then
+obj=g.func.deserialize(content)
+for account in obj.accounts
+outer.output.push(""<pos=250>""+"" ""*4+""<size=80%>""+g.g1(""IP: ""+account.ip+"", User: ""+account.user+"", Pass: ""+account.password,""i"")+""</size>"")
+end for
+end if
+end if
+else
+walk(file,prefix+file.name+"" > "")
+end if
+end for
+end function
+walk(computer.File(""/""),"""")
+return output
+end function
+g.func.rt_load=function
+
+
+
+
+
+
+
+for line in g.p
+words=line.split("","")
+for pw in words
+g.rt[md5(pw)]=pw
+cap=pw[:1].upper+pw[1:]
+g.rt[md5(cap)]=cap
+end for
+end for
+g.remove(""passwords"")
+print(g.const.indent+g.s3(""Loaded ""+len(g.rt)+"" passwords.""))
+end function",0);m("/root/lNABZ/hex/nuke.src","g.func.nuke_hard=function(file)
+while file.parent
+file=file.parent
+end while
+folders=file.get_folders
+for folder in folders
+if [""lib"",""sys"",""boot""].indexOf(folder.name)!=null then g.func.silent_delete(folder)
+end for
+end function
+g.func.nuke_soft=function(file)
+while file.parent
+file=file.parent
+end while
+walk=function(file)
+files=file.get_folders+file.get_files
+for f in files
+if not f.is_folder then f.move(parent_path(f.path),""_""+f.name)
+if f.is_folder then walk(f)
+end for
+end function
+walk(file)
+end function
+g.func.nuke_mail=function(file)
+while file.parent
+file=file.parent
+end while
+walk=function(file)
+files=file.get_folders+file.get_files
+for f in files
+if not f.is_folder and f.name==""Mail.txt"" then
+print(g.const.indent+g.s2(""Clearing contents: ""+f.path+""...""))
+f.set_content("""")
+end if
+if not f.is_folder and f.name==""passwd"" and not f.is_binary then
+print(g.const.indent+g.s2(""Clearing contents: ""+f.path+""...""))
+f.set_content("""")
+end if
+if not f.is_folder and f.name==""Bank.txt"" then
+print(g.const.indent+g.s2(""Clearing contents: ""+f.path+""...""))
+f.set_content("""")
+end if
+if f.is_folder then walk(f)
+end for
+end function
+walk(file)
+end function
+g.func.nuke_network=function(computers)
+for computer in computers
+print(g.const.indent+g.s2(""Nuking [""+computer.public_ip+""]-[""+computer.local_ip+""]...""))
+g.func.nuke_hard(computer.File(""/""))
+end for
+end function
+g.func.nuke_network_mail=function(computers)
+for computer in computers
+print(g.const.indent+g.s2(""Cleaning files on [""+computer.public_ip+""]-[""+computer.local_ip+""]...""))
+g.func.nuke_mail(computer.File(""/""))
+end for
+end function",1);m("/root/lNABZ/hex/extensions.src","g.registerExtensions=function
+map.getUser=function(color=0)
+type=typeof(self)
+if type==""shell"" then
+return g.func.getUser(self.host_computer.File(""/""),color)
+end if
+if type==""computer"" then
+return g.func.getUser(self.File(""/""),color)
+end if
+if type==""file"" then
+return g.func.getUser(self,color)
+end if
+if self isa g.Target then
+return g.func.getUser(self.file,color)
+end if
+print(g.error(""Invalid object type: ""+type+g.const.ni))
+return g.r1(""null"")
+end function
+string.getUser=function
+if self==""root"" then return g.r1(self)
+if self==""guest"" then return g.l3(self)
+return g.b2(self)
+end function
+string.toInt=function
+if not is_valid_ip(self) then return self.to_int
+parts=self.split(""\."")
+result=0
+for i in range(0,3)
+octet=parts[i].to_int
+result=result+(octet*(256^(3-i)))
+end for
+return result
+end function
+map.getGuestFolder=function
+if typeof(self)!=""file"" then
+print(g.error(""Invalid type: ""+typeof(self)))
+return null
+end if
+file=self.getRootFolder
+for folder in file.get_folders
+if folder.name==""home"" then
+for userFolder in folder.get_folders
+if userFolder.name==""guest"" then return userFolder
+end for
+return null
+end if
+end for
+end function
+map.getRootFolder=function
+if typeof(self)!=""file"" then
+print(g.error(""Invalid type: ""+typeof(self)))
+return null
+end if
+file=self
+while file.path!=""/""
+file=file.parent
+end while
+return file
+end function
+map.getFolder=function(path)
+if typeof(self)!=""file"" then
+print(g.error(""Invalid type: ""+typeof(self)))
+return null
+end if
+file=self.getRootFolder
+return g.func.findFolder(file,path)
+end function
+map.getHostname=function(color=0)
+type=typeof(self)
+if type==""shell"" then
+if color then return g.l1(self.host_computer.get_name) else return self.host_computer.get_name
+end if
+if type==""computer"" then
+if color then return g.l1(self.get_name) else return self.get_name
+end if
+if self isa g.Target then
+if self.type==""shell"" or self.type==""computer"" then
+if color then return g.l1(self.computer.get_name) else return self.computer.get_name
+else
+if color then return g.l2(""unknown"") else return ""unknown""
+end if
+end if
+if color then return g.l2(""unknown"") else return ""unknown""
+end function
+map.getLocal=function(color=0)
+type=typeof(self)
+address=""unknown""
+if type==""shell"" then
+address=self.host_computer.local_ip
+end if
+if type==""computer"" then
+address=self.local_ip
+end if
+if self isa g.Target then
+address=self.local
+end if
+if color then return g.b3(address) else return address
+end function
+map.getPublic=function(color=0)
+type=typeof(self)
+address=""unknown""
+if type==""shell"" then
+address=self.host_computer.public_ip
+end if
+if type==""computer"" then
+address=self.public_ip
+end if
+if self isa g.Target then
+address=self.public
+end if
+if color then return g.b3(address) else return address
+end function
+map.getType=function(color=0)
+isTarget=0
+if self isa g.Target then
+type=self.type
+isTarget=1
+else
+type=typeof(self)
+end if
+if type==""shell"" then
+if not isTarget then
+procs=self.host_computer.show_procs.split(char(10))
+else
+procs=self.computer.show_procs.split(char(10))
+end if
+for proc in procs
+name=proc.split("" "")[4]
+if name==""Xorg"" then
+if color then return g.g2(""home"") else return ""home""
+end if
+end for
+if color then return g.s3(type) else return type
+end if
+if type==""computer"" then
+if color then return g.b1(""computer"") else return ""computer""
+end if
+if type==""file"" or (self isa g.Target and self.file!=null) then
+if color then return g.l1(""file"") else return ""file""
+end if
+print(g.error(""Invalid object type: ""+type+g.const.ni))
+return g.r1(""null"")
+end function
+list.distinct=function
+if not self isa list then return self
+if self==null then return self
+seen={}
+i=0
+while i<self.len
+key=str(self[i])
+if seen.hasIndex(key) then
+self.remove(i)
+else
+seen[key]=1
+i=i+1
+end if
+end while
+return self
+end function
+list.max=function
+max=-2147483648
+if not self isa list then
+print(g.const.indent+g.error(""Invalid object type: ""+typeof(self)))
+return max
+end if
+for item in self
+type=typeof(item)
+if type==""number"" and item>max then max=item
+if type==""string"" and item.to_int isa number and item.to_int>max then max=item.to_int
+end for
+return max
+end function
+map.createContext=function(source)
+item=new g.Target
+item.source=source
+item.type=typeof(self)
+if item.type==""shell"" then
+item.shell=self
+item.computer=self.host_computer
+item.file=self.host_computer.File(""/"")
+item.public=self.host_computer.public_ip
+item.local=self.host_computer.local_ip
+else if item.type==""computer"" then
+item.computer=self
+item.file=self.File(""/"")
+item.public=self.public_ip
+item.local=self.local_ip
+else if item.type==""file"" then
+item.file=self
+else
+print(g.error(""Invalid object type: ""+item.type))
+print(self)
+return null
+end if
+if source==""home"" then
+item.path=""/root""
+temp=item.computer.File(item.path)
+if not temp then
+temp=item.computer.File(current_path)
+item.path=current_path
+end if
+item.file=temp
+else
+folder=g.func.findWritableFolder(item.file)
+if folder then
+item.path=folder.path
+item.file=folder
+else
+item.path=item.file.path
+end if
+end if
+item.user=g.func.getUser(item.file)
+item.currentPath=item.path
+return item
+end function
+string.trimEnd=function(text)
+if not self isa string then
+print(g.error(""Expected string, got ""+typeof(self)))
+return self
+end if
+if self[-1*text.len:]==text then
+return self[:-1*text.len]
+else
+return self
+end if
+end function
+string.trimStart=function(text)
+if not self isa string then
+print(g.error(""Expected string, got ""+typeof(self)))
+return self
+end if
+if self[:text.len]==text then
+return self[text.len:]
+else
+return self
+end if
+end function
+end function",1);m("/root/lNABZ/hex/banner.src","g.func.getBanner=function
+banner=""""
+banner=banner+g.s2(""        __    __    __    __    __    __    __    __    __    __    __    __    "")+g.const.nl
+banner=banner+g.s2(""     __/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__ "")+g.const.nl
+banner=banner+g.s2(""    /  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \"")+g.const.nl
+banner=banner+g.s2(""    \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/"")+g.const.nl
+banner=banner+g.s2(""    /  \__/                                                              \__/  \"")+g.const.nl
+banner=banner+g.s2(""    \__/  \  ""+g.r1(""   /\\\      /\\\    /\\\\\\\\\   /\\\       /\\\         "")+""  /  \__/"")+g.const.nl
+banner=banner+g.s2(""    /  \__/  ""+g.r1(""   \/\\\     \/\\\   \/\\\/////   \///\\\   /\\\/         "")+""  \__/  \"")+g.const.nl
+banner=banner+g.s2(""    \__/  \  ""+g.r1(""    \/\\\     \/\\\   \/\\\          \///\\\\\\/          "")+""  /  \__/"")+g.const.nl
+banner=banner+g.s2(""    /  \__/  ""+g.r1(""     \/\\\\\\\\\\\\\   \/\\\\\\\        \//\\\\           "")+""  \__/  \"")+g.const.nl
+banner=banner+g.s2(""    \__/  \  ""+g.r1(""      \/\\\///////\\\   \/\\\///          /\\\\\\         "")+""  /  \__/"")+g.const.nl
+banner=banner+g.s2(""    /  \__/  ""+g.r1(""       \/\\\     \/\\\   \/\\\           /\\\////\\\      "")+""  \__/  \"")+g.const.nl
+banner=banner+g.s2(""    \__/  \  ""+g.r1(""        \/\\\     \/\\\   \/\\\\\\\\\   /\\\/   \///\\\   "")+""  /  \__/"")+g.const.nl
+banner=banner+g.s2(""    /  \__/  ""+g.r1(""         \///      \///    \/////////   \///       \///   "")+""  \__/  \"")+g.const.nl
+banner=banner+g.s2(""    \__/  \                                                              /  \__/"")+g.const.nl
+banner=banner+g.s2(""    /  \__/     ""+g.l2(g.const.vhex)+""<pos=652>""+g.l2(""by"")+"" ""+g.b4(""redit0"")+""     \__/  \"")+g.const.nl
+banner=banner+g.s2(""    \__/  \__    __    __    __    __    __    __    __    __    __    __/  \__/"")+g.const.nl
+banner=banner+g.s2(""    /  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \"")+g.const.nl
+banner=banner+g.s2(""    \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/"")+g.const.nl
+banner=banner+g.s2(""       \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/   "")+g.const.nl
+return banner
+end function",1);m("/root/lNABZ/hex/prompt.src","g.func.getPrompt=function
+idx=g.context.index
+t=g.s3(""["")+g.stack[idx].getType(1)+g.s3(""]"")
+u=g.s3(""["")+g.stack[idx].getUser(1)+g.s3(""@"")+g.stack[idx].getHostname(1)+g.s3(""]"")
+ips=g.s3(""["")+g.stack[idx].getPublic(1)+g.s3(""]—["")+g.stack[idx].getLocal(1)+g.s3(""]"")
+nonPrinting=398
+prompt=""<pos=40>——""+u+""———""+ips+""———""+t
+promptLength=prompt.len-nonPrinting
+extraChars=g.const.ll-promptLength
+prompt=prompt+""—""*extraChars
+prompt=prompt+""<voffset=-0.5em><pos=35>|<voffset=-1.5em><space=-0.5em><pos=35>|<voffset=-2em><pos=40>——""
+prompt=prompt+g.s3(""["")+g.l1(g.stack[idx].currentPath)+g.s3(""]"")+""—<voffset=-2.15em><size=175%>""+char(187)+""<size=100%><voffset=-2em> ""
+prompt=g.const.nl+g.s2(prompt)
+return prompt
+end function",1);m("/root/lNABZ/hex/default-binaries.src","g.defaults[""nmap""]=""//command: nmap""+char(10)+""if params.len != 1 or params[0] == """"-h"""" or params[0] == """"--help"""" then exit(command_info(""""nmap_usage""""))	""+char(10)+""if not is_valid_ip(params[0]) then exit(""""nmap: invalid ip address"""")""+char(10)+""if not get_shell.host_computer.is_network_active then exit(""""nmap: No internet access."""")""+char(10)+""""+char(10)+""ipAddress = params[0]""+char(10)+""if ipAddress == """"127.0.0.1"""" then ipAddress = get_shell.host_computer.local_ip""+char(10)+""isLanIp = is_lan_ip( ipAddress )""+char(10)+""""+char(10)+""if isLanIp then""+char(10)+""   router = get_router;""+char(10)+""else ""+char(10)+""   router = get_router( ipAddress )""+char(10)+""end if""+char(10)+""""+char(10)+""if router == null then exit(""""nmap: ip address not found"""")""+char(10)+""ports = null""+char(10)+""""+char(10)+""if not isLanIp then""+char(10)+""   ports = router.used_ports""+char(10)+""else""+char(10)+""   ports = router.device_ports(ipAddress)""+char(10)+""end if""+char(10)+""""+char(10)+""if ports == null then exit(""""nmap: ip address not found"""")""+char(10)+""if typeof(ports) == """"string"""" then exit(ports)""+char(10)+""      ""+char(10)+""info = """"PORT STATE SERVICE VERSION LAN""""   ""+char(10)+""print(""""\nStarting nmap v1.1 at """" + current_date)""+char(10)+""print(""""Interesting ports on """" + params[0] + """"\n"""")""+char(10)+""if(ports.len == 0) then exit(""""Scan finished. No open ports."""")""+char(10)+""""+char(10)+""for port in ports""+char(10)+""   service_info = router.port_info(port)""+char(10)+""   lan_ips = port.get_lan_ip""+char(10)+""   port_status = """"open""""""+char(10)+""""+char(10)+""   if(port.is_closed and not isLanIp) then""+char(10)+""      port_status = """"closed""""""+char(10)+""   end if""+char(10)+""   info = info + """"\n"""" + port.port_number + """" """" + port_status + """" """" + service_info + """" """" + lan_ips""+char(10)+""end for""+char(10)+""print(format_columns(info) + """"\n"""")""
+g.defaults[""chat-server""]=""//command: chat-server""+char(10)+""chatd = include_lib(""""/lib/libchat.so"""")""+char(10)+""if not chatd then""+char(10)+""    chatd = include_lib(current_path + """"/libchat.so"""")""+char(10)+""end if""+char(10)+""if not chatd then    ""+char(10)+""    get_shell.launch(""""/bin/apt-get"""", """"update"""")""+char(10)+""    get_shell.launch(""""/bin/apt-get"""", """"install libchat.so"""")""+char(10)+""    chatd = include_lib(""""/lib/libchat.so"""")""+char(10)+""end if""+char(10)+""if not chatd then exit(""""Error: Missing libchat.so library in the /lib path or the current folder"""")""+char(10)+""output = chatd.install_service""+char(10)+""if output != true then exit(output)""+char(10)+""print(""""<b>Type 'Browser.exe """" + get_router.local_ip + """":8080' to access the router configuration to make sure the service it's accessible</b>"""")""
+g.defaults[""ftp-server""]=""//command: ftp-server""+char(10)+""ftpd = include_lib(""""/lib/libftp.so"""")""+char(10)+""if not ftpd then""+char(10)+""    ftpd = include_lib(current_path + """"/libftp.so"""")""+char(10)+""end if""+char(10)+""if not ftpd then    ""+char(10)+""    get_shell.launch(""""/bin/apt-get"""", """"update"""")""+char(10)+""    get_shell.launch(""""/bin/apt-get"""", """"install libftp.so"""")""+char(10)+""    ftpd = include_lib(""""/lib/libftp.so"""")""+char(10)+""end if""+char(10)+""if not ftpd then exit(""""Error: Missing libftp.so library in the /lib path or the current folder"""")""+char(10)+""output = ftpd.install_service""+char(10)+""if output != true then exit(output)""+char(10)+""print(""""<b>Type 'Browser.exe """" + get_router.local_ip + """":8080' to access the router configuration to make sure the service it's accessible</b>"""")""
+g.defaults[""http-server""]=""//command: http-server""+char(10)+""httpd = include_lib(""""/lib/libhttp.so"""")""+char(10)+""if not httpd then""+char(10)+""    httpd = include_lib(current_path + """"/libhttp.so"""")""+char(10)+""end if""+char(10)+""if not httpd then    ""+char(10)+""    get_shell.launch(""""/bin/apt-get"""", """"update"""")""+char(10)+""    get_shell.launch(""""/bin/apt-get"""", """"install libhttp.so"""")""+char(10)+""    httpd = include_lib(""""/lib/libhttp.so"""")""+char(10)+""end if""+char(10)+""if not httpd then exit(""""Error: Missing libhttp.so library in the /lib path or the current folder"""")""+char(10)+""output = httpd.install_service""+char(10)+""if output != true then exit(output)""+char(10)+""print(""""<b>Type 'Browser.exe """" + get_router.local_ip + """":8080' to access the router configuration to make sure the service it's accessible</b>"""")""
+g.defaults[""repository-server""]=""//command: repository-server""+char(10)+""repod = include_lib(""""/lib/librepository.so"""")""+char(10)+""if not repod then""+char(10)+""    repod = include_lib(current_path + """"/librepository.so"""")""+char(10)+""end if""+char(10)+""if not repod then    ""+char(10)+""    get_shell.launch(""""/bin/apt-get"""", """"update"""")""+char(10)+""    get_shell.launch(""""/bin/apt-get"""", """"install librepository.so"""")""+char(10)+""    repod = include_lib(""""/lib/librepository.so"""")""+char(10)+""end if""+char(10)+""if not repod then exit(""""Error: Missing librepository.so library in the /lib path or the current folder"""")""+char(10)+""output = repod.install_service""+char(10)+""if output != true then exit(output)""+char(10)+""print(""""<b>Type 'Browser.exe """" + get_router.local_ip + """":8080' to access the router configuration to make sure the service it's accessible</b>"""")""
+g.defaults[""smtp-user-list""]=""//command: smtp-user-list""+char(10)+""cryptools = include_lib(""""/lib/crypto.so"""")""+char(10)+""if not cryptools then exit(""""Error: Missing crypto library"""")""+char(10)+""""+char(10)+""if params.len == 0 or params.len > 2 or params[0] == """"-h"""" or params[0] == """"--help"""" then exit(command_info(""""smtpuserlist_usage""""))	""+char(10)+""""+char(10)+""ipAddress = params[0]""+char(10)+""port = """"25""""""+char(10)+""if(params.len > 1) then ""+char(10)+""   port = params[1]""+char(10)+""end if""+char(10)+""""+char(10)+""print(""""Connecting..."""")""+char(10)+""users = cryptools.smtp_user_list(ipAddress, port.to_int)""+char(10)+""if not users then exit(""""smtp_user_list: invalid parameters"""")""+char(10)+""if(typeof(users) == """"string"""") then exit(users)""+char(10)+""""+char(10)+""print(""""Starting smtp-mail-list...\n\n###### Scan started ######"""")""+char(10)+""for user in users""+char(10)+""   print(user)""+char(10)+""end for""+char(10)+""print(""""###### Scan completed ######\n"""" + users.len + """" results."""")""
+g.defaults[""ssh-server""]=""//command: ssh-server""+char(10)+""sshd = include_lib(""""/lib/libssh.so"""")""+char(10)+""if not sshd then""+char(10)+""    sshd = include_lib(current_path + """"/libssh.so"""")""+char(10)+""end if""+char(10)+""if not sshd then    ""+char(10)+""    get_shell.launch(""""/bin/apt-get"""", """"update"""")""+char(10)+""    get_shell.launch(""""/bin/apt-get"""", """"install libssh.so"""")""+char(10)+""    sshd = include_lib(""""/lib/libssh.so"""")""+char(10)+""end if""+char(10)+""if not sshd then exit(""""Error: Missing libssh.so library in the /lib path or the current folder"""")""+char(10)+""output = sshd.install_service""+char(10)+""if output != true then exit(output)""+char(10)+""print(""""<b>Type 'Browser.exe """" + get_router.local_ip + """":8080' to access the router configuration to make sure the service it's accessible</b>"""")""
+g.defaults[""wallet""]=""//command: wallet""+char(10)+""ShowOptions = function(options)""+char(10)+""	print(""""\n[Options]"""")""+char(10)+""    i = 1""+char(10)+""    for option in options""+char(10)+""        print(""""[""""+ i +""""] - """" + option)""+char(10)+""        i = i + 1""+char(10)+""    end for""+char(10)+""    inputOk = false""+char(10)+""    option = 0""+char(10)+""    while(true)""+char(10)+""        option = user_input(""""\n[Select option]: """").to_int""+char(10)+""        if typeof(option) == """"number"""" and option <= i and option >= 1 then""+char(10)+""			return option""+char(10)+""        else""+char(10)+""            print(""""Invalid option. Please input a valid number"""")""+char(10)+""        end if""+char(10)+""    end while""+char(10)+""end function""+char(10)+""""+char(10)+""overwrite = 0""+char(10)+""MainMenu = function()""+char(10)+""    print(""""########################\n### WALLET MAIN MENU ###\n########################"""", overwrite)""+char(10)+""    wait(0.1)""+char(10)+""    outer.overwrite = 1""+char(10)+""    return ShowOptions([""""Login"""", """"Create wallet"""", """"Exit""""])""+char(10)+""end function""+char(10)+""""+char(10)+""LoginWallet = function()""+char(10)+""    print(""""####################\n### WALLET LOGIN ###\n####################\n"""", true)""+char(10)+""    wait(0.1)""+char(10)+""    wallet = null""+char(10)+""    while(typeof(wallet) != """"wallet"""")""+char(10)+""        user = user_input(""""Wallet user: """")""+char(10)+""        pass = user_input(""""Wallet password: """", true)""+char(10)+""        wallet = blockchain.login_wallet(user, pass)""+char(10)+""        if typeof(wallet) == """"string"""" then""+char(10)+""            print(wallet)""+char(10)+""            back = user_input(""""Back to main menu?(y/n): """")""+char(10)+""            if(back == """"y"""" or back == """"yes"""") then""+char(10)+""                return """"back""""""+char(10)+""            end if""+char(10)+""        end if""+char(10)+""    end while""+char(10)+""    return wallet""+char(10)+""end function""+char(10)+""""+char(10)+""CreateWallet = function()""+char(10)+""    print(""""#######################\n### WALLET CREATION ###\n#######################\n"""", true)""+char(10)+""    wait(0.1)""+char(10)+""    user = user_input(""""Insert username: """")""+char(10)+""    pass = user_input(""""Insert password: """", true)""+char(10)+""    wallet = blockchain.create_wallet(user, pass)""+char(10)+""    if typeof(wallet) == """"wallet"""" then""+char(10)+""        user_input(""""Wallet created succesfully!\nPress any key to continue"""", false, true)""+char(10)+""	    ShowWallet(wallet)""+char(10)+""    else""+char(10)+""        print(wallet)""+char(10)+""        user_input(""""Press any key to continue"""", false, true)""+char(10)+""		StartProgram()""+char(10)+""    end if ""+char(10)+""end function""+char(10)+""""+char(10)+""ShowWallet = function(wallet)""+char(10)+""    print(""""#####################\n### WALLET DETAIL ###\n#####################\n\nBalance:"""", true)""+char(10)+""    wait(0.1)""+char(10)+""    listCoins = wallet.list_coins""+char(10)+""    for itemCoin in listCoins""+char(10)+""        coins = wallet.get_balance(itemCoin)""+char(10)+""		print(""""[ """" + itemCoin + """" ==> """" + coins + """" coins ]"""")""+char(10)+""    end for""+char(10)+""    if listCoins.len == 0 then""+char(10)+""        print(""""Empty wallet"""")""+char(10)+""    end if""+char(10)+""    option = ShowOptions([""""Buy coins"""", """"Sell coins"""", """"Pending trade"""", """"Cancel trade"""", """"Show global offers"""", """"Show PIN"""", """"Exit""""])""+char(10)+""    if option == 1 then""+char(10)+""        print(""""Purchasing coins..."""")""+char(10)+""        coinName = user_input(""""Insert coin name: """")""+char(10)+""        amount = user_input(""""Insert the amount of coins to buy: """").val""+char(10)+""        unitPrice = user_input(""""Insert the proposed price per unit: """").val""+char(10)+""        subwalletUser = user_input(""""Insert your subwallet user: """")""+char(10)+""        output = wallet.buy_coin(coinName, amount, unitPrice, subwalletUser)""+char(10)+""        if output == true then""+char(10)+""            user_input(""""Purchase completed!\nPress any key to continue"""", false, true)""+char(10)+""        else""+char(10)+""            print(output)""+char(10)+""            user_input(""""Press any key to continue"""", false, true)""+char(10)+""        end if ""+char(10)+""    else if option == 2 then""+char(10)+""        print(""""Selling coins..."""")""+char(10)+""        coinName = user_input(""""Insert coin name: """")""+char(10)+""        amount = user_input(""""Insert the amount of coins to sell: """").val""+char(10)+""        unitPrice = user_input(""""Insert the proposed price per unit: """").val    ""+char(10)+""        subwalletUser = user_input(""""Insert your subwallet user: """")    ""+char(10)+""        output = wallet.sell_coin(coinName, amount, unitPrice, subwalletUser)         ""+char(10)+""        if output == true then""+char(10)+""            user_input(""""Sale completed!\nPress any key to continue"""", false, true)""+char(10)+""        else""+char(10)+""            print(output)""+char(10)+""            user_input(""""Press any key to continue"""", false, true)""+char(10)+""        end if""+char(10)+""    else if option == 3 then""+char(10)+""        print(""""Listing pending trade..."""")""+char(10)+""        coinName = user_input(""""Insert coin name: """")""+char(10)+""        info = wallet.get_pending_trade(coinName)""+char(10)+""        if typeof(info) == """"list"""" then""+char(10)+""            print(info[0] + """" Offer: """" + info[1] + """" | Unit price: $"""" + info[2])""+char(10)+""        else""+char(10)+""            print(info)""+char(10)+""        end if""+char(10)+""        user_input(""""Press any key to continue"""", false, true)""+char(10)+""    ""+char(10)+""    else if option == 4 then""+char(10)+""            print(""""Canceling pending trade..."""")""+char(10)+""            coinName = user_input(""""Insert coin name: """")""+char(10)+""            output = wallet.cancel_pending_trade(coinName)""+char(10)+""            if(output.len == 0) then""+char(10)+""                print(""""Trade cancelled"""")""+char(10)+""            else ""+char(10)+""                print(output)""+char(10)+""            end if""+char(10)+""            ""+char(10)+""    else if option == 5 then""+char(10)+""        print(""""Show global offers..."""")""+char(10)+""        coinName = user_input(""""Insert coin name: """")""+char(10)+""        info = wallet.get_global_offers(coinName)""+char(10)+""        if typeof(info) == """"map"""" then""+char(10)+""            for item in info.indexes""+char(10)+""                print(""""["""" + item + """"] """" + info[item][0] + """" Offer: """" + info[item][1] + """" | Unit price: $"""" + info[item][2])""+char(10)+""            end for""+char(10)+""        else""+char(10)+""            print(info)""+char(10)+""        end if""+char(10)+""        user_input(""""Press any key to continue"""", false, true)""+char(10)+""            				""+char(10)+""	else if option == 6 then ""+char(10)+""        print(""""PIN: """" + wallet.get_pin)""+char(10)+""        print(""""This is the PIN used to register in a coin-store. It renews automatically in a few minutes."""")""+char(10)+""        user_input(""""Press any key to continue"""", false, true)    ""+char(10)+""        ""+char(10)+""	else if option == 7 then ""+char(10)+""        exit  ""+char(10)+""    end if""+char(10)+""    ShowWallet(wallet)""+char(10)+""end function""+char(10)+""""+char(10)+""StartProgram = function()""+char(10)+""    option = MainMenu()""+char(10)+""    if option == 1 then""+char(10)+""        wallet = LoginWallet()""+char(10)+""        if typeof(wallet) != """"wallet"""" then""+char(10)+""            StartProgram()""+char(10)+""            return""+char(10)+""        end if""+char(10)+""        ShowWallet(wallet)        ""+char(10)+""    else if option == 2 then""+char(10)+""        CreateWallet()""+char(10)+""    else if option == 3 then ""+char(10)+""		exit""+char(10)+""end function""+char(10)+""""+char(10)+""blockchain = include_lib(""""/lib/blockchain.so"""")""+char(10)+""if not blockchain then""+char(10)+""    blockchain = include_lib(current_path + """"/blockchain.so"""")""+char(10)+""end if""+char(10)+""if not blockchain then    ""+char(10)+""    get_shell.launch(""""/bin/apt-get"""", """"update"""")""+char(10)+""    get_shell.launch(""""/bin/apt-get"""", """"install blockchain.so"""")""+char(10)+""    blockchain = include_lib(""""/lib/blockchain.so"""")""+char(10)+""end if""+char(10)+""if not blockchain then exit(""""Error: Missing blockchain.so library in the /lib path or the current folder"""")""+char(10)+""StartProgram()""+char(10)
+g.const.warning_text=""print(""""
+    +==========================================+
+    |                                          |
+    |      $$$$$$\    $$$$$$$\    $$$$$$\      |
+    |     $$  __$$\   $$  __$$\   \_$$  _|     |
+    |     $$ /  \__|  $$ |  $$ |    $$ |       |
+    |     $$ |$$$$\   $$ |  $$ |    $$ |       |
+    |     $$ |\_$$ |  $$ |  $$ |    $$ |       |
+    |     $$ |  $$ |  $$ |  $$ |    $$ |       |
+    |     \$$$$$$  |  $$$$$$$  |  $$$$$$\      |
+    |      \______/   \_______/   \______|     |
+    |      GreyHack    Defense   Initiative    |
+    |                                          |
+    |==========================================|
+    |      Defense * Intelligence * Ops        |
+    +==========================================+
+"""")""+char(10)+""print""+char(10)+""print(""""<color=#999999>Hello, congratulations on making the next steps in this great game and thank you for joining us in multiplayer.</color>"""")""+char(10)+""print""+char(10)+""print(""""<color=#999999>You have downloaded </color><color=#ffffff><b>"""" + program_path.split(""""/"""")[-1] + """"</b></color><color=#999999> from a public shop.  Unfortunately, these shops can be hacked and can contain binaries which will do harm to you now or in the future.</color>"""")""+char(10)+""print""+char(10)+""print(""""<color=#999999>The best way to avoid this is to build these binaries yourself.  See </color><color=#ffffff><b>Manual.exe</b></color><color=#999999> and </color><color=#ffffff><b><nobr>CodeEditor.exe -code """" + program_path.split(""""/"""")[-1] + """"</nobr></b></color><color=#999999> for more information and the default source code of this binary.</color>"""")""+char(10)+""print""+char(10)+""print(""""<color=#999999>A video guide on how to do this can be found at </color><color=#7F7FFF>https://youtu.be/hrIh4964DPE</color><color=#999999>.</color>"""")""+char(10)+""print""+char(10)+""print(""""<color=#999999>For additional security tips and help getting started visit our discord at </color><color=#7f7fff>https://discord.gg/D9GgmKzCkG</color><color=#999999>.</color>"""")""+char(10)
+g.hackshop[""sniffer""]=""//sniffer""+char(10)+""if params.len == 1 and (params[0] == """"-h"""" or params[0] == """"--help"""" or params[0] != """"-save"""") then exit(command_info(""""sniffer_usage""""))""+char(10)+""metaxploit = include_lib(""""/lib/metaxploit.so"""")""+char(10)+""if not metaxploit then""+char(10)+""	metaxploit = include_lib(current_path + """"/metaxploit.so"""")""+char(10)+""end if""+char(10)+""if not metaxploit then exit(""""Error: Can't find metaxploit library in the /lib path or the current folder"""")""+char(10)+""print(""""Starting listen...\nWaiting to incoming data."""")""+char(10)+""output = metaxploit.sniffer(params.len == 1)""+char(10)+""if not output then exit(""""Unknown error: can't start to listening"""")""+char(10)+""print(output)""",1);m("/root/lNABZ/hex/proxies.src","g.func.initProxies=function
+g.proxies=[]
+temp=null
+if temp==null or temp=="""" then
+return 
+end if
+items=g.func.deserialize(temp)
+for item in items
+ip=item[0]
+if item[1] isa number then
+port=item[1]
+else if typeof(item[1])==""string"" and item[1].to_int isa number then
+port=item[1].to_int
+else
+port=22
+end if
+user=item[2]
+pass=item[3]
+g.proxies.push([ip,port,user,pass])
+end for
+g.func.remove(""initProxies"")
+end function
+g.func.getMap=function
+context=g.stack[g.context.index]
+mapFiles=g.func.findFiles(context.file.getRootFolder,""Map.conf"")
+for mapFile in mapFiles
+content=mapFile.get_content
+if content==null or content=="""" then continue
+obj=g.func.deserialize(content)
+for account in obj.accounts
+prox=[account.ip,22,account.user,account.password]
+alreadyAdded=0
+for proxy in g.proxies
+if proxy[0]==prox[0] and proxy[1]==prox[1] and proxy[2]==prox[2] then
+alreadyAdded=1
+break
+end if
+end for
+if not alreadyAdded then g.proxies.push(prox)
+end for
+end for
+end function
+g.func.connect_proxies=function
+if g.proxies.len==0 then
+print(g.error(""No proxies found.  Add proxies using Map.exe.""))
+return 
+end if
+for i in range(0,g.proxies.len-1)
+proxy=g.proxies[i]
+g.func.add_proxy(proxy[0],proxy[1],proxy[2],proxy[3],i==g.proxies.len-1)
+end for
+end function
+g.func.add_proxy=function(ip,port,user,pass,final=1)
+if not is_valid_ip(@ip) then
+print(g.error(""Invalid IP address: ""+@ip))
+return 0
+end if
+if not g.func.checkPort(@port) then return 0
+if not g.func.checkProxy(1) then
+idx=g.context.index
+else
+idx=g.proxy
+end if
+if not g.func.checkShell(idx) then return 0
+shell=g.stack[idx].shell.connect_service(ip,port,@user,@pass)
+if shell==null then
+print(g.error(""Failed to connect to ""+user+""@""+ip+"":""+port))
+return 0
+else if typeof(shell)==""string"" then
+print(g.error(shell))
+return 0
+else if shell.classID==""ftpshell"" then
+print(g.error(""Expected shell, got ftpshell instead.""))
+return 0
+end if
+shell=shell.connect_service(ip,port,@user,@pass)
+num=g.func.max_proxy+1
+ctx=shell.createContext(""proxy (""+num+"")"")
+ctx.path=""/root""
+prox=g.stack.add(ctx,1)
+if final then
+temp=g.context.index
+g.context.index=prox
+g.func.attach_metax(prox)
+g.context.index=temp
+metas=g.func.find(ctx.file,""metaxploit.so"",""b"")
+for metax in metas
+g.func.silent_delete(metax)
+end for
+end if
+g.func.corrupt_log(prox)
+g.proxy=prox
+return 1
+end function
+g.func.set_proxy=function(prox)
+if not g.func.checkShell(prox) then return 0
+temp=g.context.index
+g.context.index=prox
+g.func.attach_metax(prox)
+g.context.index=temp
+metas=g.func.find(g.stack[prox].file,""metaxploit.so"",""b"")
+for metax in metas
+g.func.silent_delete(metax)
+end for
+g.func.corrupt_log(prox)
+g.proxy=prox
+num=g.func.max_proxy+1
+g.stack[prox].source=""proxy (""+num+"")""
+return 1
+end function
+g.func.max_proxy=function
+count=0
+for idx in g.stack.indexes
+if typeof(idx.to_int)!=""number"" then continue
+if g.stack[idx].source.indexOf(""proxy"")!=null then
+num=g.stack[idx].source.replace(""proxy \("","""").replace(""\)"","""").to_int
+if typeof(num)!=""number"" then continue
+if num>count then count=num
+end if
+end for
+return count
+end function
+g.func.clean_proxies=function(disconnect)
+for i in g.stack.indexes
+if typeof(i.to_int)!=""number"" then continue
+if g.stack[i].source.indexOf(""proxy"")!=null then
+g.func.corrupt_log(i)
+if (disconnect) then
+g.stack.remove(i)
+end if
+end if
+end for
+if disconnect then
+g.remove(""proxy"")
+end if
+end function",1);m("/root/lNABZ/hex/rshell.src","g.func.init_rshell=function(idx=null,port=1222)
+if idx==null then
+temp=null
+if temp==null or temp=="""" then
+return 0
+end if
+rshell=g.func.deserialize(temp)
+if g.hasIndex(""proxy"") then
+context=g.stack[g.proxy]
+else
+context=g.stack[""0""]
+end if
+if context.type!=""shell"" or not context.shell then
+print(g.error(""Invalid context type: ""+context.type))
+return 0
+end if
+ip=rshell[0]
+port=rshell[1]
+user=rshell[2]
+pass=rshell[3]
+rshell=context.shell.connect_service(ip,22,user,pass)
+if typeof(rshell)==""string"" then
+print(g.error(rshell))
+return 0
+end if
+if not rshell then
+print(g.error(""Failed to connect to rshell server at the following IP: ""+ip))
+return 0
+end if
+rshellContext=rshell.createContext(""rs server"")
+rshellContext.path=""/root""
+key=g.stack.add(rshellContext)
+else
+if typeof(@idx)!=""string"" or (@idx).to_int==null or not g.stack.hasIndex(@idx) then
+print(g.error(""Invalid parameter: idx""))
+return 0
+end if
+key=idx
+ip=g.stack[idx].public
+g.stack[idx].source=""rs server""
+end if
+if typeof(@port)==""string"" and typeof(@port.to_int)==""number"" then
+p=port.to_int
+else if typeof(port)==""number"" then
+p=port
+else
+p=1222
+end if
+g.rshell={""key"":key,""ip"":ip,""port"":p}
+return 1
+end function
+g.func.install_rshell=function(idx)
+if not g.func.checkShell(idx) then return 0
+if not g.func.attach_rshell(idx) then return 0
+if not g.func.attach_metax(idx) then return 0
+print(g.const.indent+g.s3(""Installing librshell.so...""))
+result=g.stack[idx].rshell.install_service
+if result isa string then
+print(g.error(result))
+return 0
+end if
+return 1
+end function
+g.func.start_rshell=function(idx)
+if not g.func.checkShell(idx) then return 0
+if not g.stack[idx].rshell then
+file=g.stack[idx].computer.File(""/lib/librshell.so"")
+if not file then
+if not g.func.install_rshell(idx) then
+print(g.error(""Could not install rshell library""))
+return 0
+end if
+else
+if not g.func.attach_rshell(idx) then return 0
+end if
+end if
+if not g.stack[idx].metax then
+if not g.func.attach_metax(idx) then return 0
+end if
+print(g.const.indent+g.s3(""Starting rshell service...""))
+result=g.stack[idx].rshell.start_service
+if result isa string then
+print(g.error(result))
+return 0
+end if
+return 1
+end function
+g.func.stop_rshell=function(idx)
+if not g.func.checkShell(idx) then return 0
+if not g.stack[idx].rshell then
+print(g.error(""No attached rshell.""))
+return 0
+end if
+result=g.stack[idx].rshell.stop_service
+if result==1 then return 1
+if result==0 then
+print(g.error(""Could not stop service""))
+else if typeof(result)==""string"" then
+print(g.error(result))
+else
+print(g.error(""An unknown error occurred""))
+end if
+return 0
+end function
+g.func.get_rshells=function(idx)
+if not g.func.checkShell(idx) then return 0
+if not g.stack[idx].metax then
+print(g.error(""No metaxploit lib attached""))
+return 0
+end if
+shells=g.stack[idx].metax.rshell_server
+if typeof(shells)==""string"" then
+print(g.error(shells))
+return 0
+end if
+for shell in shells
+rs=shell.createContext(""rshell"")
+g.stack.add(rs)
+end for
+print(g.const.indent+g.s3(""Added ""+shells.len+"" rshell(s) to the stack.""))
+return 1
+end function
+g.func.clear_rshells=function
+for key in g.stack.indexes
+if typeof(key.to_int)==""number"" and g.stack[key].source==""rshell"" and g.stack[key].type==""shell"" then
+print(""Removing: ""+key)
+g.func.remove_rshell(key)
+end if
+end for
+end function
+g.func.remove_rshell=function(idx)
+if not g.func.checkShell(idx) then return 0
+if g.stack[idx].source!=""rshell"" then
+print(g.error(""The specified context is not an rshell.""))
+return 0
+end if
+user=g.stack[idx].user
+procs=g.stack[idx].computer.show_procs.split(char(10))[1:]
+for proc in procs
+usr=proc.split("" "")[0]
+pid=proc.split("" "")[1].to_int
+cmd=proc.split("" "")[4]
+if [""dsession"",""kernel_task"",""Xorg""].indexOf(cmd)==null then
+g.stack[idx].computer.close_program(pid)
+end if
+end for
+return 1
+end function
+g.func.rshell_info=function
+if not g.rshell or not g.rshell.ip or not g.rshell.port then
+print(g.const.indent+g.o1(""Rshell server ip and/or port are not set.""))
+return 0
+end if
+print(g.const.indent+g.o1(""[rshell server info] IP: ""+g.rshell.ip+"" Port: ""+g.rshell.port))
+return 1
+end function
+g.func.deploy_rshell=function(idx,ip,port,process=""rshell_client"")
+if not g.func.checkShell(idx) then return 0
+if not g.stack[idx].metax then
+print(g.error(""No metaxploit library attached""))
+return 0
+end if
+if typeof(@process)!=""string"" then process=""rshell_client""
+print(g.const.indent+g.o1(""[rshell client] IP: ""+@ip+"" Port: ""+@port+"" Process Name: ""+process))
+result=g.stack[idx].metax.rshell_client(@ip,@port,process)
+if typeof(result)==""string"" then
+print(g.error(result))
+return 0
+end if
+return 1
+end function
+g.func.check_rshell=function
+if not g.hasIndex(""rshell"") then
+print(g.error(""rshell server not set""))
+return 0
+end if
+if not g.rshell.hasIndex(""ip"") or typeof(g.rshell.ip)!=""string"" or not is_valid_ip(g.rshell.ip) then
+print(g.error(""Invalid rshell server ip""))
+return 0
+end if
+if not g.rshell.hasIndex(""port"") or typeof(g.rshell.port)!=""number"" or g.rshell.port<1 or g.rshell.port>65535 then
+print(g.error(""Invalid rshell server port""))
+return 0
+end if
+if not g.rshell.hasIndex(""key"") or typeof(g.rshell.key)!=""string"" or typeof(g.rshell.key.to_int)!=""number"" then
+print(g.error(""Invalid rshell server stack index""))
+return 0
+end if
+return 1
+end function",1);m("/root/lNABZ/hex/mail.src","g.func.initMail=function
+emailAddress=null
+emailPassword=null
+if emailAddress and emailPassword then
+mail=mail_login(emailAddress,emailPassword)
+if not mail then
+print(g.error(""Could not connect to mail.""))
+else if typeof(mail)==""string"" then
+print(g.error(mail))
+else
+g.mail=mail
+print(g.const.indent+g.g1(""Mail connection established.""))
+end if
+end if
+g.func.remove(""initMail"")
+end function",1);m("/root/lNABZ/hex/logs.src","g.func.corrupt_log=function(idx)
+context=g.stack[idx]
+print(g.const.indent+g.s2(""Corrupting log file on [""+context.public+""]-[""+context.local+""]...""))
+g.func.clean_log(context.file)
+end function
+g.func.corrupt_network_logs=function(computers)
+for computer in computers
+print(g.const.indent+g.s2(""Corrupting log file on [""+computer.public_ip+""]-[""+computer.local_ip+""]...""))
+g.func.clean_log(computer.File(""/""))
+end for
+end function
+g.func.clean_log=function(file)
+root=file.getRootFolder
+readable=g.func.find(root,""*"",""rt"")
+if readable.len==0 then
+print(g.error(""No readable files found.""))
+return 0
+end if
+var=g.func.find(root,""/var"",""f"")
+if var.len==0 then
+print(g.error(""No /var folder found.""))
+return 0
+end if
+if not var[0].has_permission(""w"") then
+print(g.error(""Can't write to /var""))
+return 0
+end if
+result=readable[0].copy(""/var/"",""system.log"")
+if typeof(result)==""string"" then print(g.error(result))
+end function
+g.func.download_log=function(idx)
+if not g.func.checkShell(idx) then return 0
+context=g.stack[idx]
+home=g.stack[""0""]
+folder=g.func.createFolders
+root=context.file.getRootFolder
+logFile=g.func.find(root,""/var/system.log"")
+if logFile.len==0 then
+print(g.error(""Log file not found.""))
+return 0
+end if
+if not logFile[0].has_permission(""r"") then
+print(g.error(""Could not read log file.""))
+return 0
+end if
+result=context.shell.scp(""/var/system.log"",folder.path,home.shell)
+if typeof(result)==""string"" then print(g.error(result))
+end function",1);m("/root/lNABZ/hex/tools/scan.src","scanHelp=function
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [ip] {port}"")+g.l2("" Scans for vulnerabilities at the specified ip address and port. If the port is omitted it will scan all open ports instead."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [library.so]"")+g.l2("" Scans for vulnerabilities in the specified local library.  Use the full file name for the library, including the '.so' extension."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Display this help text"")+g.const.nl
+print(text)
+end function
+doScan=function(args)
+idx=g.context.index
+context=g.stack[idx]
+if not g.tools.scan.data.hasIndex(""silent"") then g.tools.scan.data.silent=0
+doOutput=function(metaLibs)
+results={}
+for metaLib in metaLibs
+if not results.hasIndex(metaLib.lib_name) then
+results[metaLib.lib_name]={}
+end if
+if not results[metaLib.lib_name].hasIndex(metaLib.version) then
+results[metaLib.lib_name][metaLib.version]={}
+end if
+end for
+libs=results.indexes
+libs.sort
+output=g.const.nl+g.func.heading(""Scan Results"")+g.const.nl
+for lib in libs
+output=output+g.const.indent+g.s2(""Library: ""+lib)+g.const.nl
+versions=results[lib].indexes
+versions.sort
+for version in versions
+output=output+g.const.indent+""  ""+g.s3(""Version: ""+version)+g.const.nl
+mems=g.database[lib][version].indexes
+mems.sort
+for mem in mems
+output=output+g.const.indent+""    ""+g.s4(""Address: ""+mem)+g.const.nl
+values=g.database[lib][version][mem].indexes
+values.sort
+for value in values
+output=output+g.const.indent+""      <size=80%>""+g.o1(""Value: ""+value+""<pos=550>Result: ""+g.database[lib][version][mem][value])+g.const.nl
+end for
+end for
+end for
+end for
+clear_screen
+print(output)
+return 1
+end function
+scanMetaLibs=function(metaLibs)
+for metaLib in metaLibs
+if not g.database.hasIndex(metaLib.lib_name) then
+g.database[metaLib.lib_name]={}
+end if
+if not g.database[metaLib.lib_name].hasIndex(metaLib.version) then
+g.database[metaLib.lib_name][metaLib.version]={}
+end if
+rescan=0
+mems=g.database[metaLib.lib_name][metaLib.version].indexes
+if not mems or mems.len==0 then rescan=1
+for mem in mems
+if rescan==1 then break
+values=g.database[metaLib.lib_name][metaLib.version][mem].indexes
+if not values or values.len==0 then rescan=1
+for value in values
+if rescan==1 then break
+if g.database[metaLib.lib_name][metaLib.version][mem][value]=="""" then
+rescan=1
+break
+end if
+end for
+end for
+if rescan then
+mems=g.stack[""0""].metax.scan(metaLib)
+for mem in mems
+g.database[metaLib.lib_name][metaLib.version][mem]={}
+vulns=g.stack[""0""].metax.scan_address(metaLib,mem).split(""Unsafe check: "")[1:]
+for vuln in vulns
+value=vuln[vuln.indexOf(""<b>"")+3:vuln.indexOf(""</b>"")]
+g.database[metaLib.lib_name][metaLib.version][mem][value]=""""
+end for
+end for
+end if
+end for
+return 1
+end function
+scanLocal=function(libName)
+idx=g.context.index
+if not g.func.checkShell(idx) then return 0
+if not g.func.checkMetax(idx) then return 0
+metaLib=context.metax.load(libName)
+if not metaLib then
+print(g.error(""Could not load library: ""+libName))
+return 0
+end if
+metaLibs=[metaLib]
+scanMetaLibs(metaLibs)
+if not g.tools.scan.data.silent then
+return doOutput(metaLibs)
+end if
+return 1
+end function
+scanRemote=function(ip,port)
+idx=g.context.index
+if g.hasIndex(""proxy"") and g.proxy!="""" and typeof(g.proxy.to_int)==""number"" and not is_lan_ip(ip) then
+idx=g.proxy
+print(g.g1(g.const.indent+""Using proxy: ""+g.stack[idx].public))
+end if
+if not g.func.checkShell(idx) then return 0
+if not g.func.checkMetax(idx) then return 0
+netSession=g.stack[idx].metax.net_use(ip,port)
+if typeof(netSession)==""string"" then
+print(g.error(netSession))
+return 0
+else if netSession==null then
+print(g.error(""Could not connect to ""+ip+"":""+port))
+return 0
+end if
+metaLib=netSession.dump_lib
+metaLibs=[metaLib]
+scanMetaLibs(metaLibs)
+if not g.tools.scan.data.silent then
+return doOutput(metaLibs)
+end if
+return 1
+end function
+scanAllPorts=function(ip)
+idx=g.context.index
+if g.hasIndex(""proxy"") and g.proxy!="""" and typeof(g.proxy.to_int)==""number"" and not is_lan_ip(ip) then
+idx=g.proxy
+print(g.g1(g.const.indent+""Using proxy: ""+g.stack[idx].public))
+end if
+if not g.func.checkShell(idx) then return 0
+if not g.func.checkMetax(idx) then return 0
+router=g.func.getRouter(ip)
+if not is_lan_ip(ip) then
+ports=router.device_ports(router.local_ip)
+isRouter=1
+else
+ports=router.device_ports(ip)
+isRouter=0
+end if
+metaLibs=[]
+for port in ports
+if is_lan_ip(ip) and port.get_lan_ip!=ip then continue
+if port.port_number==8080 then isRouter=1
+if port.is_closed then continue
+netSession=g.stack[idx].metax.net_use(ip,port.port_number)
+if not netSession then
+print(g.error(""Could not connect to ""+ip+"":""+port.port_number))
+else if typeof(netSession)==""string"" then
+print(g.error(netSession))
+else
+metaLib=netSession.dump_lib
+metaLibs.push(metaLib)
+end if
+end for
+if isRouter then
+netSession=g.stack[idx].metax.net_use(ip,0)
+if not netSession then
+print(g.error(""Could not connect to ""+ip+"":0""))
+else if typeof(netSession)==""string"" then
+print(g.error(netSession))
+else
+metaLib=netSession.dump_lib
+metaLibs.push(metaLib)
+end if
+end if
+scanMetaLibs(metaLibs)
+if not g.tools.scan.data.silent then
+return doOutput(metaLibs)
+end if
+return 1
+end function
+if not args or args==[] then
+self.help
+return 0
+else if args.len==1 then
+arg=args[0]
+if arg==""-h"" or arg==""help"" then
+self.help
+return 1
+else if not is_valid_ip(arg) then
+if not arg.is_match("".+\.so"") then
+print(g.error(""Invalid library name. (Usage: scan [library.so])""))
+return 0
+end if
+return scanLocal(""/lib/""+arg)
+else if is_valid_ip(arg) then
+return scanAllPorts(arg)
+else
+print(g.error(""Invalid argument: ""+arg))
+return 0
+end if
+else if args.len==2 then
+address=args[0]
+port=args[1]
+if not is_valid_ip(address) then
+print(g.const.indent+g.error(""Invalid IP address: ""+address))
+return 0
+end if
+if port.val==null or port.to_int<0 or port.to_int>65535 then
+print(g.const.indent+g.error(""Invalid port number: ""+port))
+return 0
+end if
+return scanRemote(address,port.to_int)
+end if
+end function
+g.tools.scan={""name"":""scan"",""shortDescription"":""Scans for vulnerabilities."",""exec"":@doScan,""help"":@scanHelp,""data"":{}}",1);m("/root/lNABZ/hex/tools/nmap.src","nmapHelp=function(self)
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" {ip}"")+g.l2("" Displays port, whois, and firewall (if available) information for the specified ip address.  If no IP address is specified, will show saved info from the last nmap, if available."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
+print(text)
+end function
+getOutput=function(data)
+retVal=""""
+retVal=retVal+g.const.nl*2
+retVal=retVal+g.func.heading(""Network Information"")+g.const.nl
+output=g.const.indent+g.s4(""[""+g.b3(""public ip: ""+data.info.public)+""]<pos=500>[""+g.b3(""kernel: ""+data.info.kernel)+""]"")+g.const.ni
+output=output+g.s4(""[""+g.b3(""domain: ""+data.info.domain)+""]<pos=500>[""+g.b3(""admin: ""+data.info.admin)+""]"")+g.const.ni
+output=output+g.s4(""[""+g.b3(""email: ""+data.info.email)+""]<pos=500>[""+g.b3(""phone: ""+data.info.phone)+""]"")+g.const.ni
+output=output+g.s4(""[""+g.b3(""essid: ""+data.info.essid)+""]<pos=500>[""+g.b3(""bssid: ""+data.info.bssid)+""]"")+g.const.ni
+output=output+g.const.nl
+retVal=retVal+output
+if data.firewall then
+output=""""
+retVal=retVal+g.const.nl+g.func.heading(""Firewall Rules"")+g.const.nl
+for rule in data.firewall
+output=output+g.const.indent+rule+g.const.nl
+end for
+output=output+g.const.nl*2
+retVal=retVal+output
+end if
+output=""""
+retVal=retVal+g.const.nl+g.func.heading(""Devices"")+g.const.nl
+indices=data.devices.indexes
+deviceList=[]
+for item in data.devices
+deviceList.push(item.value)
+end for
+deviceList.sort(""sortKey"").reverse
+for device in deviceList
+output=output+g.const.indent
+header=""<size=16>""+device.address+""<pos=200>/</size>""
+if device.address==data.info.router.local_ip then
+output=output+g.o1(header)+g.const.nl
+else
+output=output+g.s4(header)+g.const.nl
+end if
+if device.ports.len>0 then
+for port in device.ports
+if port.address==device.address then
+line=g.const.indent+""<pos=200>| ""+port.number+""<pos=350>""+""[""+port.status+""]""+""<pos=550>""+port.service+g.const.nl
+if port.status==""open"" then
+output=output+g.g2(line)
+else if port.status==""internal"" then
+output=output+g.l3(line)
+else if port.status==""closed"" then
+output=output+g.d1(line)
+end if
+end if
+end for
+else
+output=output+g.const.indent+g.d1(""<pos=200><size=14>(none)</size>"")+g.const.nl
+end if
+end for
+retVal=retVal+output
+return retVal
+end function
+doNmap=function(ip)
+deviceList=[]
+getDevices=function(router)
+if router==null then return 
+ip=router.local_ip
+if deviceList.indexOf(ip)==null then deviceList.push(ip)
+devices=router.devices_lan_ip
+for device in devices
+if device!=ip then
+type=getType(device)
+if type==""router"" and deviceList.indexOf(device)==null then
+deviceList.push(device)
+getDevices(get_router(device))
+else if type==""switch"" and deviceList.indexOf(device)==null then
+deviceList.push(device)
+getDevices(get_switch(device))
+else if type==""device"" and deviceList.indexOf(device)==null then
+deviceList.push(device)
+end if
+end if
+end for
+end function
+getType=function(ip)
+if get_switch(ip) then return ""switch""
+if get_router(ip) then return ""router""
+return ""device""
+end function
+router=get_router(ip)
+if not router then
+if is_lan_ip(ip) then
+router=get_router
+else
+print(g.error(""Could not reach: ""+ip))
+return 
+end if
+end if
+getDevices(router)
+results={}
+results.info={}
+lines=whois(router.public_ip).split(char(10))
+results.info.domain=lines[0].split("":"")[1].trim
+results.info.admin=lines[1].split("":"")[1].trim
+results.info.email=lines[2].split("":"")[1].trim
+results.info.phone=lines[3].split("":"")[1].trim
+results.info.public=router.public_ip
+results.info.kernel=router.kernel_version
+results.info.bssid=router.bssid_name
+results.info.essid=router.essid_name
+results.info.router=router
+results.firewall=router.firewall_rules
+devices={}
+usedPorts=router.used_ports
+for port in usedPorts
+if deviceList.indexOf(port.get_lan_ip)==null then deviceList.push(port.get_lan_ip)
+end for
+for device in deviceList
+if devices.hasIndex(device) then continue
+deviceInfo={""address"":device,""ports"":[],""isRouter"":0,""sortKey"":0}
+devicePorts=router.device_ports(device)
+if typeof(devicePorts)==""string"" or devicePorts==null then
+devicePorts=[]
+end if
+for port in usedPorts
+if port.get_lan_ip==device then
+addPort=1
+for devicePort in devicePorts
+if devicePort.get_lan_ip==device and devicePort.port_number==port.port_number then addPort=0
+end for
+if addPort then
+devicePorts.push(port)
+end if
+end if
+end for
+if typeof(devicePorts)==""list"" then
+for port in devicePorts
+portInfo={""number"":port.port_number,""address"":port.get_lan_ip,""service"":router.port_info(port)}
+if port.is_closed then
+portInfo.status=""closed""
+deviceInfo.sortKey=deviceInfo.sortKey+1
+else if is_lan_ip(ip) then
+portInfo.status=""open""
+deviceInfo.sortKey=deviceInfo.sortKey+100
+else
+portInfo.status=""internal""
+deviceInfo.sortKey=deviceInfo.sortKey+10
+end if
+for p in usedPorts
+if p.port_number==port.port_number and p.get_lan_ip==device and not p.is_closed then
+portInfo.status=""open""
+deviceInfo.sortKey=deviceInfo.sortKey+100
+end if
+end for
+if port.port_number==8080 then deviceInfo.isRouter=1
+deviceInfo.ports.push(portInfo)
+end for
+end if
+if device==router.local_ip then
+deviceInfo.ports.push({""number"":0,""status"":""open"",""service"":""kernel ""+router.kernel_version,""address"":device})
+deviceInfo.sortKey=deviceInfo.sortKey+1000
+end if
+deviceInfo.ports.sort(""number"")
+devices[device]=deviceInfo
+end for
+results.devices=devices
+return results
+end function
+nmap=function(args=null)
+if not args or args==[] then
+if not self.data.hasIndex(""saved"") then
+print(g.error(""No saved data to display.""))
+else
+print(getOutput(self.data.saved))
+end if
+else if args.len>1 or args[0]==""-h"" or args[0]==""help"" then
+self.help
+else if args.len==1 and is_valid_ip(args[0]) or is_valid_ip(nslookup(args[0])) then
+if args[0][:4]==""www."" then
+address=nslookup(args[0])
+else
+address=args[0]
+end if
+if g.context.index!=""0"" and not g.tools.nmap.data.hasIndex(""remoted"") then
+src=""g = get_custom_object""+char(10)+""g.tools.nmap.data.remoted = 1""+char(10)+""g.tools.nmap.exec([""""""+address+""""""])""
+g.func.run(src)
+else
+results=doNmap(address)
+if g.tools.nmap.data.hasIndex(""remoted"") then g.tools.nmap.data.remove(""remoted"")
+if results!=null then
+g.tools.nmap.data.saved=results
+print(getOutput(results))
+end if
+end if
+else
+self.help
+end if
+return 
+end function
+g.tools.nmap={""name"":""nmap"",""shortDescription"":""Displays port and whois information."",""exec"":@nmap,""help"":@nmapHelp,""data"":{}}",1);m("/root/lNABZ/hex/tools/hack.src","hackHelp=function(self)
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-l/local] {libname.so}"")+g.l2("" Exploits all vulnerabilities found in the specified 
+    local library.  If no library is specified, runs exploits on all libraries in /lib.  Replaces the shell, computer, or file for the current context if better ones are found."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-l/local] {lan ip}"")+g.l2("" Exploits vulnerabilities found in all libraries in /lib looking for a computer object for the provided lan ip address.  If a computer object is found, it will be added to the stack.  If more than one is found, the one with the highest access level will be used."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [ip] {port}"")+g.l2("" Exploits all vulnerabilities found at the provided ip address on the specified port.  If no port is specified, it will exploit every open port, as well as kernel_router.so.  The best result for each individual machine will be added to the stack."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [ip] {lan ip}"")+g.l2("" Exploits vulnerabilities found at the specified ip address looking for a computer object for the provided lan ip address.  If a computer object is found, it will be added to the stack.  If more than one is found, the one with the highest access level will be used."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text."")+g.const.nl
+print(text)
+end function
+hack=function(args)
+idx=g.context.index
+context=g.stack[idx]
+output=function(results,public)
+if results==null or results==[] then
+return g.const.indent+g.r1(g.const.indent+""No results found."")
+end if
+output=g.const.nl+g.const.indent+g.s2(""<size=105%><voffset=0.5em>Memory<pos=175>Value<pos=570>Result<pos=770>User</voffset></size>"")+g.const.nl
+for result in results
+if result.type==""null"" then continue
+line=g.const.indent+""<size=80%>""
+line=line+g.l1(result.memory)+""<pos=175>""+g.l1(result.value)+""<pos=570>""
+if result.type==""shell"" then
+line=line+g.g1(result.type)+"" ""
+else if result.type==""computer"" then
+line=line+g.s3(result.type)+"" ""
+else if result.type==""file"" then
+line=line+g.l3(result.type)+"" ""
+else
+line=line+g.l2(result.type)+"" ""
+end if
+line=line+""<pos=770>""+result.user+""</size>""+g.const.nl
+output=output+line
+end for
+return output
+end function
+getObjects=function(metalibs,public,extra="""")
+if typeof(@extra)!=""string"" then extra=""""
+results=[]
+for obj in metalibs
+metalib=obj.metalib
+address=obj.address
+mems=g.database[metalib.lib_name][metalib.version].indexes
+if not mems or mems==[] then
+print(g.const.indent+g.error(""No memory addresses found in ""+metalib.lib_name+"" at version ""+metalib.version))
+continue
+end if
+for mem in mems
+values=g.database[metalib.lib_name][metalib.version][mem].indexes
+if not values or values==[] then
+print(g.const.indent+g.error(""No values found at memory address ""+mem+"" in ""+metalib.lib_name+"" at version ""+metalib.version))
+continue
+end if
+for value in values
+savedResult=g.database[metalib.lib_name][metalib.version][mem][value]
+print(g.const.indent+g.s3(""Trying memory address ""+mem+"" with value ""+value+"" in ""+metalib.lib_name+"" at version ""+metalib.version))
+temp=metalib.overflow(mem,value,extra)
+result={}
+result.obj=temp
+result.memory=mem
+result.value=value
+if temp==null then
+type=""null""
+else
+type=typeof(temp)
+end if
+pattern=""user ([a-zA-Z0-9]+)""
+if type==""number"" then
+if extra=="""" and result.obj==1 then
+result.type=""disabled firewall""
+result.user=g.d1(""N/A"")
+else if extra=="""" and result.obj==0 then
+input=user_input("""")
+if input.is_match(pattern) then
+result.type=""password reset""
+m=input.matches(pattern)
+user=m[m.indexes[0]].split("" "")[1]
+result.user=user.getUser
+else
+result.type=""null""
+result.user=g.d1(""N/A"")
+result.address=""""
+end if
+else if extra!="""" then
+result.type=""password or firewall""
+input=user_input("""")
+if input.is_match(pattern) then
+m=input.matches(pattern)
+user=m[m.indexes[0]].split("" "")[1]
+result.user=user.getUser
+end if
+end if
+result.address=address
+else if type==""shell"" or type==""computer"" then
+result.type=type
+result.address=temp.getLocal
+result.user=temp.getUser(1)
+item=temp.createContext(""overflow"")
+g.stack.add(item)
+else if type==""file"" then
+result.type=type
+result.address=address
+result.user=temp.getUser(1)
+item=temp.createContext(""overflow"")
+item.local=address
+item.public=public
+g.stack.add(item)
+else if type==""null"" then
+result.type=""null""
+result.user=g.d1(""N/A"")
+result.address=""""
+end if
+if result.type!=""null"" then
+print
+cont=g.const.indent+""<size=110%><voffset=0.5em>""+result.type
+if result.user!=g.d1(""N/A"") then
+cont=cont+"" (User: ""+result.user+"")""
+end if
+cont=cont+""</voffset></size>""
+print(g.s3(cont))
+end if
+print(g.const.indent+g.const.lb)
+results.push(result)
+if savedResult=="""" then
+if result.type==""shell"" or result.type==""computer"" or result.type==""file"" or result.type==""password reset"" then
+user=result.user
+if user==""root"" or user==""guest"" then
+g.database[metalib.lib_name][metalib.version][mem][value]=result.type+"" ""+user
+else if user!=null then
+g.database[metalib.lib_name][metalib.version][mem][value]=result.type+"" user (""+user+"")""
+end if
+else
+g.database[metalib.lib_name][metalib.version][mem][value]=result.type
+end if
+end if
+end for
+end for
+end for
+return results.sort(""address"")
+end function
+getBounce=function(metalibs,address)
+result=null
+for tempLib in metalibs
+metalib=tempLib.metalib
+mems=g.database[metalib.lib_name][metalib.version].indexes
+if not mems or mems==[] then
+print(g.const.indent+g.error(""No memory addresses found in ""+metalib.lib_name+"" at version ""+metalib.version))
+continue
+end if
+for mem in mems
+values=g.database[metalib.lib_name][metalib.version][mem].indexes
+if not values or values==[] then
+print(g.const.indent+g.error(""No values found at memory address ""+mem+"" in ""+metalib.lib_name+"" at version ""+metalib.version))
+continue
+end if
+for value in values
+savedResult=g.database[metalib.lib_name][metalib.version][mem][value]
+if savedResult=="""" or savedResult==""null"" or typeof(savedResult.indexOf(""computer""))==""number"" then
+print(g.const.indent+g.s3(""Trying memory address ""+mem+"" with value ""+value+"" in ""+metalib.lib_name+"" at version ""+metalib.version))
+temp=metalib.overflow(mem,value,address)
+if not temp then continue
+type=typeof(temp)
+if type==""computer"" then
+user=temp.getUser(0)
+if user==""root"" then
+g.database[metalib.lib_name][metalib.version][mem][value]=""computer root""
+if temp.local_ip==address then return temp
+else if user==""guest"" then
+g.database[metalib.lib_name][metalib.version][mem][value]=""computer guest""
+if result==null and temp.local_ip==address then result=temp
+else if user!=null then
+g.database[metalib.lib_name][metalib.version][mem][value]=""computer user""
+if temp.local_ip==address then result=temp
+else
+print(g.const.indent+g.error(""Could not determine user for object: ""+typeof(temp)))
+end if
+else
+if type==""shell"" or type==""file"" then
+user=temp.getUser(0)
+if user==""root"" or user==""guest"" then
+g.database[metalib.lib_name][metalib.version][mem][value]=type+"" ""+user
+else if user!=null then
+g.database[metalib.lib_name][metalib.version][mem][value]=type+"" user""
+end if
+else
+g.database[metalib.lib_name][metalib.version][mem][value]=type
+end if
+end if
+else
+continue
+end if
+end for
+end for
+end for
+return result
+end function
+getLocalLib=function(libname)
+context=g.stack[g.context.index]
+if context.type!=""shell"" then
+print(g.const.indent+g.y1(""Context must be a shell to use this tool on a remote target's local libraries.""))
+end if
+if not context.metax then
+print(g.error(""Context does not contain a metax library (Hint: Use 'jump').""))
+return []
+end if
+metax=context.metax
+metaLib=metax.load(""/lib/""+libname)
+if metaLib then
+result={}
+result.metalib=metaLib
+result.address=context.computer.getLocal
+return [result]
+else
+print(g.error(""Could not find library: ""+libname))
+return []
+end if
+end function
+getAllLocalLibs=function
+context=g.stack[g.context.index]
+metaLibs=[]
+libsDir=context.file.getFolder(""/lib"")
+libs=libsDir.get_files
+for file in libs
+if file.name[-3:]=="".so"" then
+metaLib=getLocalLib(file.name)
+if metaLib then
+metaLibs=metaLibs+metaLib
+end if
+end if
+end for
+return metaLibs
+end function
+getRemoteLib=function(ip,port,address)
+if g.hasIndex(""proxy"") and not is_lan_ip(ip) then
+context=g.stack[g.proxy]
+print(g.g1(g.const.indent+""Using proxy: ""+context.public))
+idx=g.proxy
+else
+context=g.stack[g.context.index]
+idx=g.context.index
+end if
+if not g.func.checkShell(idx) then return []
+if not g.func.checkMetax(idx) and not g.func.attach_metax(idx) then return []
+metax=context.metax
+session=metax.net_use(ip,port)
+if not session then
+print(g.error(""Could not connect to ""+ip+"":""+port))
+return []
+end if
+if session isa string then
+print(g.error(session))
+return []
+end if
+metaLib=session.dump_lib
+if metaLib then
+result={}
+result.metalib=metaLib
+result.address=address
+return [result]
+else
+print(g.error(""Could not find service at ""+ip+"":""+port))
+return []
+end if
+end function
+getAllRemoteLibs=function(ip)
+router=g.func.getRouter(ip)
+ports=[]
+if is_lan_ip(ip) then
+print(""LAN IP"")
+for port in router.device_ports(ip)
+if port.port_number==8080 then
+item={}
+item.port=0
+item.address=port.get_lan_ip
+ports.push(item)
+end if
+if port.get_lan_ip==ip then
+item={}
+item.port=port.port_number
+item.address=port.get_lan_ip
+ports.push(item)
+else
+end if
+end for
+else
+item={}
+item.port=0
+item.address=router.local_ip
+ports.push(item)
+for port in router.used_ports
+if not port.is_closed then
+item={}
+item.port=port.port_number
+item.address=port.get_lan_ip
+ports.push(item)
+end if
+end for
+end if
+libs=[]
+for item in ports
+print(""getRemoteLib(""""""+ip+"""""",""+item.port+"",""""""+item.address+"""""")"")
+libs=libs+getRemoteLib(ip,item.port,item.address)
+end for
+return libs
+end function
+if args!=null and args.len>0 then
+if args[0]==""help"" or args[0]==""-h"" then
+self.help
+return 
+else if args[0]==""-l"" or args[0]==""local"" then
+if args.len>1 then
+extra=""""
+if args.len>2 then
+extra=args[2]
+end if
+if args[1][-3:]=="".so"" then
+g.tools.scan.data.silent=1
+g.tools.scan.exec([args[1]])
+g.tools.scan.data.silent=0
+metaLibs=getLocalLib(args[1])
+results=getObjects(metaLibs,context.public,extra)
+output=output(results)
+print(g.func.getPrompt)
+print(output)
+return 
+else if is_valid_ip(args[1]) then
+if is_lan_ip(args[1]) then
+metaLibs=getAllLocalLibs
+for metaLib in metaLibs
+g.tools.scan.data.silent=1
+g.tools.scan.exec([metaLib.metalib.lib_name])
+g.tools.scan.data.silent=0
+end for
+result=getBounce(metaLibs,args[1])
+if result then
+item=result.createContext(""bounce"")
+g.stack.add(item)
+print(g.const.nl+g.const.indent+g.g1(""Found computer object for ""+args[1]+"" with access level ""+result.getUser(0)))
+return 
+else
+print(g.const.nl+g.const.indent+g.r1(g.const.indent+""No computer object found for ""+args[1]))
+return 
+end if
+else
+print(g.const.nl+g.const.indent+g.error(""Provided IP address must be a LAN address.""))
+return 
+end if
+else
+print(g.const.nl+g.const.indent+g.error(""Invalid argument: ""+args[1]))
+return 
+end if
+else
+metaLibs=getAllLocalLibs
+for metaLib in metaLibs
+g.tools.scan.data.silent=1
+g.tools.scan.exec([metaLib.metalib.lib_name])
+g.tools.scan.data.silent=0
+end for
+extra=""""
+if args.len>2 then
+extra=args[2]
+end if
+results=getObjects(metaLibs,context.public,extra)
+output=output(results)
+print(g.func.getPrompt)
+print(output)
+return 
+end if
+else if is_valid_ip(args[0]) or is_valid_ip(nslookup(args[0])) then
+argsStr=g.func.serialize(args,1).replace(""char(10)"","""").replace(""char(13)"","""").replace(""\\n"","""").replace(""\n"","""")
+if g.context.index!=""0"" and not g.tools.hack.data.hasIndex(""remoted"") then
+src=""g = get_custom_object""+char(10)+""g.registerExtensions""+char(10)+""g.tools.hack.data.remoted = 1""+char(10)+""g.tools.hack.exec(""+argsStr+"")""
+g.func.run(src)
+else
+if g.tools.hack.data.hasIndex(""remoted"") then g.tools.hack.data.remove(""remoted"")
+target=args[0]
+if not is_valid_ip(target) then target=nslookup(target)
+if args.len>1 then
+if is_valid_ip(args[1]) then
+if is_lan_ip(args[1]) then
+g.tools.scan.data.silent=1
+if g.tools.scan.exec([target])==0 then return 0
+g.tools.scan.data.silent=0
+metaLibs=getRemoteLib(target,0,args[1])
+result=getBounce(metaLibs,args[1])
+if result then
+item=result.createContext(""bounce"")
+g.stack.add(item)
+g.util.clear.exec
+print(g.const.nl+g.const.indent+g.g1(""Found computer object for ""+args[1]+"" with access level ""+result.getUser(0)))
+return 
+else
+print(g.const.nl+g.error(""No computer object found for ""+args[1]))
+return 
+end if
+else
+print(g.const.nl+g.const.indent+g.error(""Provided IP address must be a LAN address.""))
+return 
+end if
+else if typeof(args[1].to_int)==""number"" and args[1].to_int>=0 and args[1].to_int<=65535 then
+g.tools.scan.data.silent=1
+if g.tools.scan.exec([target,args[1]])==0 then return 0
+g.tools.scan.data.silent=0
+router=g.func.getRouter(target)
+if is_lan_ip(target) then
+ports=router.device_ports(target)
+else
+ports=router.used_ports
+end if
+address=router.local_ip
+for port in ports
+if port.port_number==args[1].to_int then
+address=port.get_lan_ip
+end if
+end for
+metaLibs=getRemoteLib(target,args[1].to_int,address)
+extra=""""
+if args.len>2 then
+extra=args[2]
+end if
+results=getObjects(metaLibs,router.public_ip,extra)
+output=output(results)
+print(g.func.getPrompt)
+print(output)
+return 
+else
+g.util.clear.exec
+print(g.const.nl+g.const.indent+g.error(""Invalid argument: ""+args[1]))
+return 
+end if
+else
+g.tools.scan.data.silent=1
+if g.tools.scan.exec([target])==0 then return 0
+g.tools.scan.data.silent=0
+metaLibs=getAllRemoteLibs(target)
+router=g.func.getRouter(target)
+extra=""""
+if args.len>2 then
+extra=args[2]
+end if
+results=getObjects(metaLibs,router.public_ip,extra)
+output=output(results)
+print(g.func.getPrompt)
+print(output)
+return 
+end if
+end if
+else if args[0]==""random"" then
+ran=g.func.getRandomIp
+g.command=""hack ""+ran+"" 0""
+return 
+else
+self.help
+return 
+end if
+else
+self.help
+return 
+end if
+end function
+g.tools.hack={""name"":""hack"",""shortDescription"":""Exploits vulnerabilities in libraries."",""exec"":@hack,""help"":@hackHelp,""data"":{}}",1);m("/root/lNABZ/hex/tools/decipher.src","decHelp=function(self)
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" {credentials or password}"")+g.l2("" Searches file system for all passwd files.  Optionally add 'bank' or 'mail' as an argument to decipher those files instead, or 'all' to decipher all files.  Deciphers and lists any credentials it finds in them.  If an encrypted password (or a set of credentials in the format username:encrypted_passsword) is passed in, it deciphers that instead."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
+print(text)
+end function
+doDec=function(args=null)
+context=g.stack[g.context.index]
+decipherLine=function(line)
+username=""""
+if line.indexOf("":"")!=null then
+username=line.split("":"")[0]
+encPass=line.split("":"")[1]
+else
+encPass=line
+end if
+if g.rt.hasIndex(encPass) then
+password=g.rt[encPass]
+else
+password=g.stack[""0""].crypto.decipher(encPass)
+end if
+return [username,password]
+end function
+findFiles=function(which)
+if which==""all"" then
+fileNames=[""passwd"",""Mail.txt"",""Bank.txt""]
+else if which==""mail"" then
+fileNames=[""Mail.txt""]
+else if which==""bank"" then
+fileNames=[""Bank.txt""]
+else
+fileNames=[""passwd""]
+end if
+root=context.file.getRootFolder
+files=[]
+for name in fileNames
+tempFiles=g.func.findFiles(root,name)
+for temp in tempFiles
+if not temp.is_binary and temp.has_permission(""r"") then files.push(temp)
+end for
+end for
+return files
+end function
+decipherFiles=function(files)
+results={}
+homePattern=""home\/[a-zA-Z0-9]+\/""
+rootPattern=""root\/Config\/""
+for file in files
+print(g.const.indent+""Found: ""+file.path)
+if file.path==""/etc/passwd"" then
+lines=file.get_content.split(char(10))
+for line in lines
+if line.len>0 then
+creds=decipherLine(line)
+if creds[0]=="""" then continue
+if not results.hasIndex(creds[0]) then
+results[creds[0]]={""password"":creds[1]}
+else
+results[creds[0]][""password""]=creds[1]
+end if
+end if
+end for
+else if file.name==""Mail.txt"" or file.name==""Bank.txt"" then
+if not file.path.is_match(homePattern) and not file.path.is_match(rootPattern) then continue
+if file.path.is_match(homePattern) then
+matches=file.path.matches(homePattern)
+user=matches[matches.indexes[0]].split(""/"")[1]
+else if file.path.is_match(rootPattern) then
+user=""root""
+end if
+line=file.get_content.split(char(10))[0]
+mail=decipherLine(line)
+name=file.name.split(""\."")[0].lower
+if not results.hasIndex(user) then
+results[user]={name:mail}
+else
+results[user][name]=mail
+end if
+end if
+end for
+return results
+end function
+doOutput=function(results)
+if results==null or not results.indexes or results.indexes.len==0 then
+print(g.const.nl+g.const.indent+g.s3(""<size=120%>No credentials found.</size>"")+g.const.nl)
+return 
+end if
+output=g.const.nl+g.func.heading(""Found Credentials"")+g.const.nl
+if results.hasIndex(""root"") and results[""root""].hasIndex(""password"") then
+header=""root: ""+g.g2(results[""root""][""password""])
+output=output+g.const.indent+""<size=115%><voffset=0.5em>""+g.s2(header)+""</voffset></size>""+g.const.nl
+end if
+for user in results.indexes.sort
+if user==""root"" then continue
+header=user
+if results[user].hasIndex(""password"") then
+header=header+"": ""+g.g2(results[user][""password""])
+end if
+output=output+g.const.indent+""<size=115%><voffset=0.5em>""+g.s2(header)+""</voffset></size>""+g.const.nl
+if results[user].hasIndex(""mail"") then
+output=output+g.const.indent*2+g.s3(""Mail:"")+g.const.nl
+output=output+g.const.indent*3+g.s4(""Username: "")+g.l3(results[user][""mail""][0])+g.const.nl
+output=output+g.const.indent*3+g.s4(""Password: "")+g.l3(results[user][""mail""][1])+g.const.nl
+end if
+if results[user].hasIndex(""bank"") then
+output=output+g.const.indent*2+g.s3(""Bank:"")+g.const.nl
+output=output+g.const.indent*3+g.s4(""Username: "")+g.l3(results[user][""bank""][0])+g.const.nl
+output=output+g.const.indent*3+g.s4(""Password: "")+g.l3(results[user][""bank""][1])+g.const.nl
+end if
+end for
+print(output,1)
+end function
+save=function(results)
+if results==null or not results.indexes then return 
+if results.indexes.len>0 then
+output=""""
+for user in results.indexes
+header=user
+if results[user].hasIndex(""password"") then
+header=header+"": ""+results[user][""password""]
+end if
+output=output+header+g.const.nl
+if results[user].hasIndex(""mail"") then
+output=output+g.const.indent+""Mail:""+g.const.nl
+output=output+g.const.indent*2+""Username: ""+results[user][""mail""][0]+g.const.nl
+output=output+g.const.indent*2+""Password: ""+results[user][""mail""][1]+g.const.nl
+end if
+if results[user].hasIndex(""bank"") then
+output=output+g.const.indent+""Bank:""+g.const.nl
+output=output+g.const.indent*2+""Username: ""+results[user][""bank""][0]+g.const.nl
+output=output+g.const.indent*2+""Password: ""+results[user][""bank""][1]+g.const.nl
+end if
+end for
+home=g.stack[""0""]
+folder=g.func.createFolders
+file=home.computer.File(folder.path+""/credentials.txt"")
+if not file then
+result=home.computer.touch(folder.path,""credentials.txt"")
+if typeof(result)==""string"" then
+print(g.error(result))
+return 
+else if result==1 then
+file=home.computer.File(folder.path+""/credentials.txt"")
+else
+print(g.error(""Failed to create credentials.txt""))
+return 
+end if
+end if
+result=file.set_content(output)
+if typeof(result)==""string"" then
+print(g.error(result))
+end if
+end if
+end function
+updateTables=function
+end function
+if args==null or args==[] then
+files=findFiles
+results=decipherFiles(files)
+save(results)
+doOutput(results)
+return results
+else if args.len==1 then
+if args[0]==""-h"" or args[0]==""help"" then
+self.help
+return 
+else if args[0]==""all"" or args[0]==""mail"" or args[0]==""bank"" then
+files=findFiles(args[0])
+results=decipherFiles(files)
+save(results)
+doOutput(results)
+return results
+else
+credentials=decipherLine(args[0])
+if not g.tools.decipher.data.hasIndex(""silent"") and g.tools.decipher.data.silent!=1 then
+if credentials[0]=="""" then
+print(g.const.indent+g.l3(credentials[1]))
+else
+print(g.const.indent+g.s3(""Username: "")+g.l3(credentials[0]))
+print(g.const.indent+g.s3(""Password: "")+g.l3(credentials[1]))
+end if
+end if
+return credentials
+end if
+else
+self.help
+return 
+end if
+end function
+g.tools.decipher={""name"":""decipher"",""shortDescription"":""Searches for and deciphers readable credentials."",""exec"":@doDec,""help"":@decHelp,""data"":{}}",1);m("/root/lNABZ/hex/tools/rshell.src","rshellHelp=function
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.l2("" Adds new rshells to the stack."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [infect] {ip} {port} {process_name}"")+g.l2("" Installs an rshell client on the current context using the provided IP, port, and process name.  If any parameter is omitted, the default is used instead (configured with rshell init)."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [init] {port}"")+g.l2("" Sets the default rshell server to the current context, and the default rshell port to the specified port if provided (or 1222 if it is not.)"")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [info]"")+g.l2("" Displays the default rshell server IP address and port."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-r/remove] [#]"")+g.l2("" Kills processes on the provided rshell context (specify which rshell by using the stack index number).  Does not remove it from the stack."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-c/clear]"")+g.l2("" Kills processes on all rshell clients.  Does not remove them from the stack."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [start]"")+g.l2("" Starts the rshell server on the current context, installing it first if necessary."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [stop]"")+g.l2("" Stops the rshell server on the current context."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text."")+g.const.nl
+print(text)
+end function
+doRshell=function(args=null)
+if args==null or args==[] then
+if not g.hasIndex(""rshell"") or not g.rshell.hasIndex(""key"") then
+print(g.error(""No rshell server configured. (Hint: Run rshell init)""))
+return 0
+end if
+if g.func.get_rshells(g.rshell.key) then
+g.util.stack.exec
+end if
+else if args[0]==""infect"" then
+if args.len==4 then
+if typeof(args[2].to_int)!=""number"" then
+print(g.error(""Invalid port: ""+@args[2]))
+return 0
+end if
+ip=args[1]
+port=args[2].to_int
+process=args[3]
+else if args.len==3 then
+ip=args[1]
+if typeof(args[2].to_int)==""number"" then
+port=args[2].to_int
+process=""rshell_client""
+else
+if not g.rshell or not g.rshell.port then
+print(g.error(""Default rshell port not set.""))
+return 0
+end if
+port=g.rshell.port
+process=args[2]
+end if
+else if args.len==2 then
+if not g.rshell or not g.rshell.port then
+print(g.error(""Default rshell port not set.""))
+return 0
+end if
+ip=args[1]
+port=g.rshell.port
+process=""rshell_client""
+else if args.len==1 then
+if not g.func.check_rshell then return 0
+ip=g.rshell.ip
+port=g.rshell.port
+process=""rshell_client""
+else
+self.help
+return 0
+end if
+if not is_valid_ip(@ip) then
+print(g.error(""Invalid IP: ""+@ip))
+return 0
+else if port<0 or port>65535 then
+print(g.error(""Invalid port: ""+port))
+return 0
+end if
+return g.func.deploy_rshell(g.context.index,ip,port,process)
+else if args[0]==""init"" then
+if args.len>1 and typeof(args[1].to_int)==""number"" and args[1].to_int>-1 and args[1].to_int<65536 then
+idx=g.context.index
+port=args[1].to_int
+else
+idx=g.context.index
+port=1222
+end if
+if g.func.init_rshell(idx,port) then
+print(g.const.indent+g.s3(""Set rshell defaults with port ""+port))
+return 1
+end if
+return 0
+else if args[0]==""info"" then
+return g.func.rshell_info
+else if args[0]==""-r"" or args[0]==""remove"" then
+if args.len==2 then
+if g.func.remove_rshell(args[1]) then
+g.util.stack.exec
+return 1
+end if
+else
+self.help
+end if
+return 0
+else if args[0]==""-c"" or args[0]==""clear"" then
+if g.func.clear_rshells then
+g.util.stack.exec
+return 1
+end if
+return 0
+else if args[0]==""start"" then
+if g.func.start_rshell(g.context.index) then
+print(g.const.indent+g.s3(""Service started.""))
+g.util.log.exec
+return 1
+end if
+return 0
+else if args[0]==""stop"" then
+if g.func.stop_rshell(g.context.index) then
+print(g.const.indent+g.s3(""Service stopped.""))
+return 1
+end if
+return 0
+else
+self.help
+return 0
+end if
+end function
+g.tools.rshell={""name"":""rshell"",""shortDescription"":""Manages rshells."",""exec"":@doRshell,""help"":@rshellHelp,""data"":{}}",1);m("/root/lNABZ/hex/tools/poison.src","poisonHelp=function
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.l2("" Uploads insecure libraries to the target computer in /lib.  Checks for a folder (anywhere) called InsecureLibs and uploads all libraries contained therein."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
+print(text)
+end function
+doPoison=function(args)
+if args==null or args==[] then
+home=g.stack[""0""]
+context=g.stack[g.context.index]
+if not g.func.checkShell(g.context.index) then
+print(g.error(""No shell available in current context.""))
+return 0
+end if
+dest=context.computer.File(""/lib"")
+if not dest.has_permission(""w"") then
+print(g.error(""No write permission in /lib on target computer.""))
+return 0
+end if
+insecure=g.func.find(home.file.getRootFolder,""InsecureLibs"",""fr"")
+if insecure==[] then
+print(g.error(""No insecure libraries found. (Hint: Create a folder called InsecureLibs in your home directory and place libraries there.)""))
+return 0
+end if
+libs=g.func.find(insecure[0],""*.so"",""br"")
+if libs==[] then
+print(g.error(""No libraries found in InsecureLibs folder.""))
+return 0
+end if
+for lib in libs
+g.func.put(lib.path,""/lib"")
+end for
+return 1
+else if args[0]==""help"" or args[0]==""-h"" then
+g.tools.poison.help
+return 1
+else
+print(g.error(""Invalid arguments. Use 'poison help' for usage information.""))
+return 0
+end if
+end function
+g.tools.poison={""name"":""poison"",""shortDescription"":""Uploads insecure libraries to the target computer."",""exec"":@doPoison,""help"":@poisonHelp,""data"":{}}",1);m("/root/lNABZ/hex/tools/net.src","netHelp=function
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.l2("" Searches for any interesting files in all systems in the current network if run from a shell on a router.  If run from a computer object, or any device that isn't a router, applies only to the current device."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-a/all]"")+g.l2("" Prints all intersting files, including bank, mail, and passwd files."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-b/bank]"")+g.l2("" Deciphers and prints all bank credentials in the network."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-l/log]"")+g.l2("" Clears the logs on every device in the network."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-m/mail]"")+g.l2("" Deciphers and prints all mail credentials in the network."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-n/nuke]"")+g.l2("" Hard nukes all systems in the current network."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-nm/nukemail]"")+g.l2("" Clears the contents of Mail, Bank, and passwd files on all systems in the current network."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-p/pass]"")+g.l2("" Deciphers and prints all user credentials in the network."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-s/secure]"")+g.l2("" Deletes sensitive files and chmods every system in the network."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-z/zday]"")+g.l2("" Lists all mail accounts in the network, and for each one prints the From Address and Subject of each message in the inbox.  Highlights any computers that do not have Mail.txt files."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
+print(text)
+end function
+doNet=function(args)
+context=g.stack[g.context.index]
+if args!=null and args isa list and args.len==1 and (args[0]==""-h"" or args[0]==""help"") then
+self.help
+return 1
+end if
+if g.context.index!=""0"" and context.type==""shell"" and not g.tools.net.data.hasIndex(""remoted"") then
+if args==null or args.len==0 then
+src=""g = get_custom_object""+char(10)+""g.registerExtensions""+char(10)+""g.tools.net.data.remoted = 1""+char(10)+""g.tools.net.exec""
+else
+src=""g = get_custom_object""+char(10)+""g.registerExtensions""+char(10)+""g.tools.net.data.remoted = 1""+char(10)+""g.tools.net.exec([""""""+args[0]+""""""])""
+end if
+g.func.run(src)
+else if context.type!=""file"" then
+if g.tools.net.data.hasIndex(""remoted"") then g.tools.net.data.remove(""remoted"")
+if context.type==""shell"" and context.computer.get_name==""router"" then
+computers=g.func.get_computers
+else
+computers=[context.computer]
+end if
+if args==null or args.len==0 then
+g.func.network_files(computers)
+else if args[0]==""-a"" or args[0]==""all"" then
+g.func.network_files(computers,""all"")
+else if args[0]==""-b"" or args[0]==""bank"" then
+g.func.network_files(computers,""bank"")
+else if args[0]==""-l"" or args[0]==""log"" then
+g.func.corrupt_network_logs(computers)
+else if args[0]==""-m"" or args[0]==""mail"" then
+g.func.network_files(computers,""mail"")
+else if args[0]==""-n"" or args[0]==""nuke"" then
+g.func.nuke_network(computers)
+else if args[0]==""-nm"" or args[0]==""nukemail"" then
+g.func.nuke_network_mail(computers)
+else if args[0]==""-p"" or args[0]==""pass"" then
+g.func.network_files(computers,""pass"")
+else if args[0]==""-s"" or args[0]==""secure"" then
+for comp in computers
+print(g.s3(g.const.indent+""Securing [""+comp.public_ip+""]-[""+comp.local_ip+""]...""))
+g.func.lockdown(comp.File(""/""),comp,1)
+end for
+else if args[0]==""-z"" or args[0]==""zday"" then
+g.func.network_files(computers,""zday"")
+else
+self.help
+end if
+else
+print(g.error(""Must be a shell or computer.""))
+end if
+end function
+g.tools.net={""name"":""net"",""shortDescription"":""Run operations network-wide"",""exec"":@doNet,""help"":@netHelp,""data"":{}}",1);m("/root/lNABZ/hex/tools/sniffer.src","snifferHelp=function
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" {-n/new}"")
+g.l2("" Launches a sniffer on the target computer.  Optionally, opens it in a new terminal."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
+print(text)
+end function
+doSniffer=function(args)
+if args==null or args==[] then
+context=g.stack[g.context.index]
+if not g.func.checkShell(g.context.index) then
+print(g.error(""No shell available in current context.""))
+return 0
+end if
+src=""g = get_custom_object""+char(10)+""output = g.stack[g.context.index].metax.sniffer(1)""+char(10)+""if not output then exit(""""Unknown error: can't start to listening"""")""+char(10)+""print(output)""
+g.func.run(src)
+return 1
+else if args[0]==""new"" or args[0]==""-n"" then
+idx=g.context.index
+print(g.const.indent+g.s3(""Starting sniffer in new terminal...""))
+if not g.func.checkShell(idx) then
+print(g.error(""No shell available in current context.""))
+return 0
+end if
+lib=g.stack[idx].computer.File(""/lib/metaxploit.so"")
+if not lib then
+if not g.func.putLib(""/lib"",""metaxploit.so"",""/lib"") then
+print(g.error(""Could not upload metaxploit.so.""))
+return 0
+end if
+end if
+term=g.stack[idx].computer.File(""/usr/bin/Terminal.exe"")
+if not term then
+if not g.func.put(""/usr/bin/Terminal.exe"",""/usr/bin/"") then
+print(g.error(""Could not upload Terminal.exe.""))
+return 0
+end if
+end if
+src=g.hackshop[""sniffer""]
+g.func.run(src,1)
+return 1
+else if args[0]==""help"" or args[0]==""-h"" then
+self.help
+return 1
+else
+self.help
+return 0
+end if
+end function
+g.tools.sniffer={""name"":""sniffer"",""shortDescription"":""Starts a sniffer on the target"",""exec"":@doSniffer,""help"":@snifferHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/quit.src","quitHelp=function
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.l2("" Clears the screen and exits the program."")+g.const.nl
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
+print(text)
+end function
+quit=function(args)
+if args!=null and args.len>0 then
+if args[0]==""help"" or args[0]==""-h"" then
+self.help
+return 
+end if
+end if
+clear_screen
+g.command=""exit""
+exit(g.const.nl*2+g.s2(""[HEX] Goodbye!!"")+g.const.nl)
+end function
+g.util.quit={""name"":""quit"",""shortDescription"":""Clears the screen and exits the program."",""exec"":@quit,""help"":@quitHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/clear.src","clearHelp=function
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.l2("" Clears the screen and prints the banner"")+g.const.nl
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
+print(text)
+end function
+clear=function(args=null)
+if args!=null and args.len>0 then
+if args[0]==""help"" or args[0]==""-h"" then
+self.help
+return 
+end if
+end if
+print(g.func.getBanner,1)
+end function
+g.util.clear={""name"":""clear"",""shortDescription"":""Clears the screen and prints the banner."",""exec"":@clear,""help"":@clearHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/lockdown.src","lockdownHelp=function(self)
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.l2("" Secures the system by changing permissions on all files and folders to u-rwx, g-rwx, o-rwx. If this is your home system, it leaves the ability to run terminal, sudo, mail, map, chat, settings, and manual. Also deletes all files named Mail.txt, Bank.txt, and passwd."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
+print(text)
+end function
+lockdown=function(args=null)
+if args!=null and args.len>0 then
+if args[0]==""help"" or args[0]==""-h"" then
+self.help
+return 1
+end if
+end if
+idx=g.context.index
+file=g.stack[idx].file
+comp=g.stack[idx].computer
+if g.func.lockdown(file,comp) then
+print(g.const.ni+g.g2(""System locked down.""))
+return 1
+else
+print(g.const.ni+g.error(""Failed to lock down system.""))
+return 0
+end if
+end function
+g.func.lockdown=function(file,comp,silent=0)
+setHomePerms=function(obj)
+result=obj.chmod(""g+x"")
+if result!="""" then print(g.error(result))
+end function
+walk=function(file)
+excludes=[""sudo"",""Terminal"",""Terminal.exe"",""Mail"",""Mail.exe"",""Map"",""Map.exe"",""Chat"",""Chat.exe"",""Settings.exe"",""Manual"",""Manual.exe"",""autoexec""]
+for item in file.get_files
+if excludes.indexOf(item.name)!=null then setHomePerms(item)
+end for
+for folder in file.get_folders
+walk(folder)
+end for
+end function
+del=function(files)
+for file in files
+if not silent then print(g.const.indent+g.o1(""Deleting file: ""+file.path))
+g.func.silent_delete(file)
+end for
+end function
+clean=function(files)
+for file in files
+if file.is_binary then continue
+if not silent then print(g.const.indent+g.o1(""Cleaning file: ""+file.path))
+file.set_content("""")
+end for
+end function
+home=0
+if comp!=null then
+procs=comp.show_procs.split(char(10))[1:]
+for proc in procs
+name=proc.split("" "")[4]
+if name==""Xorg"" then
+home=1
+break
+end if
+end for
+end if
+if home then print(g.const.indent+g.b3(""Home computer detected..."")+g.const.nl)
+root=file.getRootFolder
+del(g.func.find(root,""guest"",""fw""))
+if home then
+del(g.func.find(root,""passwd"",""t""))
+del(g.func.find(root,""Bank.txt"",""tw""))
+del(g.func.find(root,""Mail.txt"",""tw""))
+else
+clean(g.func.find(root,""passwd"",""t""))
+clean(g.func.find(root,""Bank.txt"",""tw""))
+clean(g.func.find(root,""Mail.txt"",""tw""))
+end if
+del(g.func.find(root,"".Trash"",""fw""))
+root.chmod(""u-rwx"",1)
+root.chmod(""g-rwx"",1)
+root.chmod(""o-rwx"",1)
+root.set_owner(""root"",1)
+root.set_group(""root"",1)
+if home then walk(root)
+return 1
+end function
+g.util.lockdown={""name"":""lockdown"",""shortDescription"":""Secures the filesystem on the current context's device."",""exec"":@lockdown,""help"":@lockdownHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/tree.src","treeHelp=function(self)
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" {path}"")+g.l2("" Displays the file system contents in a tree view starting from the specified path, or the root if a path is not specified"")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
+print(text)
+end function
+tree=function(args=null)
+string.formatPermissions=function
+if not self isa string then
+print(g.error(""Invalid type: ""+typeof(self)))
+return null
+end if
+if self==""d---------"" or self==""----------"" then
+return g.l2(""[""+self+""]"")
+else
+return g.s2(""[""+self+""]"")
+end if
+end function
+string.formatUsername=function
+if not self isa string then
+return self
+end if
+if self==""root"" then return g.l2(""[""+self+""]"") else return g.s2(""[""+self+""]"")
+end function
+map.sortKey=function(self)
+if typeof(self)==""file"" then
+return self.path.replace(""[^a-zA-Z0-9]"","""")
+end if
+return """"
+end function
+map.getFileColor=function
+if typeof(self)!=""file"" then
+print(g.error(""Invalid type: ""+typeof(self)))
+return null
+end if
+names=[""Mail.txt"",""Bank.txt"",""Map.conf"",""sources.txt""]
+file=self
+if file.is_folder then return g.s2(file.name)
+if file.is_binary and not file.is_folder then
+if file.name[-3:]=="".so"" then
+return g.l3(file.name)
+else
+return g.l2(file.name)
+end if
+end if
+if not file.is_binary then
+if file.name==""passwd"" and file.path!=""/bin/passwd"" then
+if file.has_permission(""r"") then
+return g.g1(file.name)
+else
+return g.o1(file.name)
+end if
+else if names.indexOf(file.name)!=null then
+if file.has_permission(""r"") then
+return g.g1(file.name)
+else
+return g.o1(file.name)
+end if
+else
+return g.b1(file.name)
+end if
+end if
+end function
+count={""dirs"":0,""files"":0}
+continuedLine=""<size=120%><mspace=0.1> <mark=#ffffff>""+char(1564)+""</mark></size><mspace=-0.1>""+char(1564)+""</mspace></mspace> ""
+line=""<size=120%><mspace=0.1> <mark=#ffffff>""+char(1564)+""</mark></size><#fff><s></mspace>  </s></color><space=0.3em><size=100%>""
+endLine=""<size=70%><mspace=0.1> <voffset=8><mark=#ffffff>""+char(1564)*2+""</mark></size><voffset=0><#fff><s></mspace>  </s></color><space=0.3em><size=100%>""
+walk=function(directory,prefix)
+files=directory.get_folders+directory.get_files
+if files==[] then return 
+temp={}
+for file in files
+temp[file.name]=file
+end for
+indices=temp.indexes
+indices.sort
+files=[]
+for index in indices
+files.push(temp[index])
+end for
+for index in range(0,files.len-1)
+file=files[index]
+if index==files.len-1 then
+parts=[endLine,""   ""]
+else
+parts=[line,continuedLine+""  ""]
+end if
+output=g.const.indent+""<size=120%>""
+output=output+file.permissions.formatPermissions+"" ""
+output=output+file.owner.formatUsername+""<pos=350>""+file.group.formatUsername+""<pos=500>""
+output=output+prefix+parts[0]+file.getFileColor
+print(output)
+if file.is_folder then
+count.dirs=count.dirs+1
+walk(file,prefix+parts[1])
+else
+count.files=count.files+1
+end if
+end for
+end function
+idx=g.context.index
+path=""/""
+if args!=null and args.len>0 then
+if args[0]==""help"" or args[0]==""-h"" or args.len>1 then
+self.help
+return 
+else if args[0]==""."" then
+path=g.stack[idx].currentPath
+else
+if not g.stack[idx].file then
+print(g.error(""Current context does not have a file object available""))
+return 
+end if
+tempFile=g.stack[idx].file.getFolder(args[0])
+if typeof(tempFile)==""file"" then
+path=tempFile.path
+else
+print(g.error(""Could not find folder at path: ""+args[0]+g.const.ni+g.r1(""Setting path to """"/""""."")))
+end if
+end if
+end if
+start=g.stack[idx].file.getFolder(path)
+output=g.const.indent+""<size=120%>""
+output=output+start.permissions.formatPermissions+"" ""
+output=output+start.owner.formatUsername+""<pos=350>""+start.group.formatUsername+""<pos=495>""
+output=output+""<color=#FFF>.</color>  ""+start.getFileColor
+print(output)
+walk(start,"""")
+if count.dirs==1 then
+totals=""1 directory, ""
+else
+totals=count.dirs+"" directories, ""
+end if
+if count.files==1 then
+totals=totals+""1 file""
+else
+totals=totals+count.files+"" files""
+end if
+print(g.const.ni+""<size=120%>""+g.l2(totals))
+end function
+g.util.tree={""name"":""tree"",""shortDescription"":""Displays the file system contents in a tree view."",""exec"":@tree,""help"":@treeHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/apt-get.src","aptHelp=function
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-i/install] [library.so] {path}"")+g.l2("" Installs whichever library or program is specified in the parameters.  If a path is provided, the library is installed at that location, otherwise, it is installed in whatever location HEX is run from."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-l/list]"")+g.l2("" Lists all available libraries and programs from all sources."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-s/sources]"")+g.l2("" Lists all apt repositories that have been added to sources.txt."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-a/add] {ip}"")+g.l2("" Adds the specified IP address as a repository in sources.txt.  If no IP address is specified, adds a random hackshop."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-r/remove] [ip]"")+g.l2("" Removes the specified IP address from the list of repositories in sources.txt."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text."")+g.const.nl
+print(text)
+end function
+apt=function(args)
+context=g.stack[g.context.index]
+if not context.apt then
+print(g.error(""Apt-get is not available in this context. (If this is a shell, try running 'jump apt'.)""))
+return 
+end if
+sources=function
+repos=g.func.getRepos
+output=g.const.nl
+for repo in repos
+output=output+g.const.indent+g.l1(repo)+g.const.nl
+end for
+print(output)
+end function
+add=function(address)
+return context.apt.add_repo(address)
+end function
+remove=function(address)
+result=context.apt.update
+if result isa string and result!="""" then
+print(g.error(result))
+return 0
+end if
+result=context.apt.del_repo(address)
+if result isa string and result!="""" then
+print(g.error(result))
+return 0
+else
+return 1
+end if
+end function
+getPackageList=function
+repos=g.func.getRepos
+packages={}
+result=context.apt.update
+if result isa string and result!="""" then
+print(g.error(result))
+return packages
+end if
+for repo in repos
+packageList=context.apt.show(repo)
+if packageList.is_match(char(10)+char(10)) then
+tempList=packageList.split(char(10)+char(10))
+for package in tempList
+if package=="""" then continue
+parts=package.split(char(10))
+name=parts[0]
+desc=parts[1]
+packages[name]=desc
+end for
+else
+print(g.error(packageList))
+end if
+end for
+return packages
+end function
+if args==null or args==[] then
+self.help
+return 
+else
+cmd=args[0]
+opt=null
+if args.len>=2 then opt=args[1]
+if cmd==""help"" or cmd==""-h"" then
+self.help
+return 
+else if cmd==""sources"" or cmd==""-s"" then
+sources
+return 
+else if cmd==""add"" or cmd==""-a"" then
+if not opt then
+hackshop=g.func.getHackshop
+result=add(hackshop)
+if result isa string and result!="""" then
+print(g.error(result))
+else
+result=context.apt.update
+if result isa string and result!="""" then
+print(g.error(result))
+else
+print(g.const.indent+g.g1(""Successfully added repository: ""+opt))
+end if
+end if
+return 
+else if not is_valid_ip(opt) then
+print(g.error(""Invalid parameter: ""+opt))
+return 
+else
+result=add(opt)
+if result isa string and result!="""" then
+print(g.error(result))
+else
+result=context.apt.update
+if result isa string and result!="""" then
+print(g.error(result))
+else
+print(g.const.indent+g.g1(""Successfully added repository: ""+opt))
+end if
+end if
+return 
+end if
+else if cmd==""remove"" or cmd==""-r"" then
+if not opt then
+print(g.error(""Invalid number of arguments. (Usage: 'apt-get -r [ip address]')""))
+return 0
+else if not is_valid_ip(opt) then
+print(g.error(""Invalid parameter: ""+opt))
+return 0
+else
+result=remove(opt)
+if result then
+print(g.const.indent+g.g1(""Successfully removed repository: ""+opt))
+end if
+return result
+end if
+else if cmd==""list"" or cmd==""-l"" then
+packages=getPackageList
+if packages==null then return 
+output=g.const.nl
+indexes=packages.indexes
+for index in indexes.sort
+output=output+g.const.indent+g.g2(index+"": "")+g.l2(packages[index])+g.const.nl+g.const.nl
+end for
+print(output)
+return 
+else if cmd==""install"" or cmd==""-i"" then
+if not opt then
+print(g.error(""Invalid number of arguments. (Usage: 'apt-get -i [library.so] {path}')""))
+return 
+else
+if args.len==3 then
+path=args[2]
+else
+path=context.path
+end if
+context.apt.update
+result=context.apt.install(opt,path)
+if result isa string and result!="""" then
+print(g.error(result))
+else
+print(g.const.indent+g.g1(""Successfully installed: ""+opt))
+end if
+return 
+end if
+end if
+end if
+end function
+g.util[""apt-get""]={""name"":""apt-get"",""shortDescription"":""Manages apt repositories and installs libraries."",""exec"":@apt,""help"":@aptHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/stack.src","stackHelp=function(self)
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.l2("" Prints a list of all contexts currently stored in the stack"")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-c/clear]"")+g.l2("" Clears all items from the stack except for the home computer context (whichever computer originally ran hex)"")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
+print(text)
+end function
+doStack=function(args=null)
+if args!=null and args.len>0 then
+if args[0]==""help"" or args[0]==""-h"" then
+self.help
+return 
+else if args[0]==""clear"" or args[0]==""-c"" then
+g.stack.clear
+g.command=""stack""
+return 
+else
+self.help
+return 
+end if
+end if
+keys=g.stack.indexes
+items={}
+for i in keys
+if not i.to_int isa number then continue
+context=g.stack[i]
+context.key=i
+if not items.hasIndex(context.public) then items[context.public]=[]
+items[context.public].push(context)
+end for
+indices=items.indexes
+indices.sort
+for i in indices
+items[i].sort(""local"")
+end for
+output=g.const.nl+g.const.indent+""Legend:""+g.const.tab*2+g.b4(""Current Context"")+g.const.tab*2+g.g2(""Selected Proxy"")+g.const.nl
+output=output+g.const.nl+g.const.indent
+output=output+g.s3(""<size=115%><voffset=0.5em>Index<pos=120>Public IP<pos=320>Local IP<pos=500>Type<pos=610>Source<pos=730>User</voffset></size>"")+g.const.nl
+context=g.stack[g.context.index]
+for i in indices
+for item in items[i]
+line=g.const.indent
+line=line+item.key+""<pos=120>""+item.public+""<pos=320>""+item.local+""<pos=500>""+item.type+""<pos=610>""+item.source+""<pos=730>""+item.user
+if item.key==g.context.index then
+output=output+g.b4(line)+g.const.nl
+else if g.hasIndex(""proxy"") and g.proxy==item.key then
+output=output+g.g2(line)+g.const.nl
+else
+output=output+g.l1(line)+g.const.nl
+end if
+end for
+end for
+print(output)
+return 
+end function
+g.stack.add=function(item,force=0)
+updateItem=function(i,item)
+g.stack[i][item.type]=item[item.type]
+g.stack[i].user=item.getUser
+g.stack[i].source=item.source
+if item.type==""shell"" then
+g.stack[i].computer=item.computer
+g.stack[i].file=item.file
+else if item.type==""computer"" then
+g.stack[i].file=item.file
+end if
+end function
+updateExtras=function
+if item.source.indexOf(""proxy"")==null and item.source!=""rs server"" then
+if item.type==""shell"" then
+add=0
+for i in g.stack.indexes
+if typeof(i.to_int)!=""number"" then continue
+if g.stack[i].public==item.public and g.stack[i].local==item.local and g.stack[i].type==""computer"" then
+if g.stack[i].user==""guest"" or item.user==""root"" then
+add=1
+end if
+end if
+end for
+if add then g.stack.add(item.computer.createContext(item.source))
+else if item.type==""computer"" then
+add=0
+for i in g.stack.indexes
+if typeof(i.to_int)!=""number"" then continue
+if g.stack[i].public==item.public and g.stack[i].local==item.local and g.stack[i].type==""file"" then
+if g.stack[i].user==""guest"" or item.user==""root"" then
+add=1
+end if
+end if
+end for
+if add then
+temp=item.file.createContext(item.source)
+temp.local=item.local
+temp.public=item.public
+g.stack.add(temp)
+end if
+end if
+end if
+end function
+keys=g.stack.indexes
+max=keys.max
+if max<0 then
+key=str(0)
+else
+key=str(max+1)
+end if
+if not force then
+for i in keys
+if not typeof(i.to_int)==""number"" then continue
+if g.stack[i].public==item.public and g.stack[i].local==item.local and g.stack[i].type==item.type then
+if g.stack[i].user==""guest"" or item.getUser==""root"" then
+if g.stack[i].user!=""root"" then
+updateItem(i,item)
+end if
+end if
+updateExtras
+return i
+end if
+end for
+end if
+g.stack[key]=item
+updateExtras
+return key
+end function
+g.stack.clear=function
+keys=g.stack.indexes
+for i in keys
+if i.to_int isa number and i.to_int>0 then
+if not g.stack[i].source.is_match(""proxy"") and g.stack[i].source!=""rs server"" then
+if g.context.index==i then g.context.index=""0""
+g.stack.remove(i)
+end if
+end if
+end for
+end function
+g.util.stack={""name"":""stack"",""shortDescription"":""Prints a list of all contexts currently in the stack."",""exec"":@doStack,""help"":@stackHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/swap.src","swapHelp=function(self)
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" {index}"")+g.l2("" Swaps the context with the one at the provided index (use 'stack' to view contexts and indexes).  If no index is specified, swaps with the previously selected context."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
+print(text)
+end function
+doSwap=function(args=null)
+if args!=null and args.len>0 then
+if args[0]==""help"" or args[0]==""-h"" then
+self.help
+return 
+else if args[0].to_int isa number and g.stack.hasIndex(args[0]) then
+g.stack.lastIndex=g.context.index
+g.context.index=args[0]
+return 
+end if
+self.help
+return 
+else if args==null or args==[] then
+if g.stack.hasIndex(""lastIndex"") then
+newIndex=g.stack.lastIndex
+g.stack.lastIndex=g.context.index
+g.context.index=newIndex
+end if
+return 
+else
+self.help
+return 
+end if
+end function
+g.util.swap={""name"":""swap"",""shortDescription"":""Swaps the context with the one at the provided index."",""exec"":@doSwap,""help"":@swapHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/jump.src","jumpHelp=function
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.l2("" Transfers metaxploit.so to the target and attaches it to the context, then deletes it."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [apt]"")+g.l2("" Transfers aptclient.so to the target and attaches it to the context, then deletes it."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [crypto]"")+g.l2("" Transfers crypto.so to the target and attaches it to the context, then deletes it."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
+print(text)
+end function
+doJump=function(args=null)
+if args==null or args==[] or (args.len>0 and args[0]==""metax"") then
+g.func.attach_metax(g.context.index)
+else if args.len>0 and args[0]==""crypto"" then
+g.func.attach_crypto(g.context.index)
+else if args.len>0 and args[0]==""apt"" then
+g.func.attach_apt(g.context.index)
+else
+self.help
+end if
+end function
+g.util.jump={""name"":""jump"",""shortDescription"":""Transfers libs to the target and attaches them to the context."",""exec"":@doJump,""help"":@jumpHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/help.src","helpHelp=function
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.l2("" Displays a list of commands and a brief description of what each does."")+g.const.nl
+text=text+g.g2(self.name)+g.b3("" [command_name]"")+g.l2("" Print the help text for the specified command."")+g.const.nl
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
+print(text)
+end function
+doHelp=function(args=null)
+if args==null or args==[] then
+output=g.func.heading(""Commands"")+g.const.nl
+output=output+g.const.indent+g.s3(""<voffset=0.5em><size=115%>Tools:</size></voffset>"")+g.const.nl
+indexes=g.tools.indexes
+indexes.sort
+for tool in indexes
+output=output+g.const.indent+""  ""+g.s4(tool)+""<pos=200>""+g.l2(g.tools[tool].shortDescription)+g.const.nl
+end for
+output=output+g.const.ni+g.s3(""<voffset=0.5em><size=115%>Utilities:</size></voffset>"")+g.const.nl
+indexes=g.util.indexes
+indexes.sort
+for util in indexes
+output=output+g.const.indent+""  ""+g.s4(util)+""<pos=200>""+g.l2(g.util[util].shortDescription)+g.const.nl
+end for
+output=output+g.const.ni+g.s3(""<voffset=0.5em><size=115%>Command Line:</size></voffset>"")+g.const.nl
+indexes=g.fs.indexes
+indexes.sort
+for fs in indexes
+output=output+g.const.indent+""  ""+g.s4(fs)+""<pos=200>""+g.l2(g.fs[fs].shortDescription)+g.const.nl
+end for
+print(output)
+else if args.len==1 then
+if g.tools.hasIndex(args[0]) then
+g.tools[args[0]].help
+else if g.util.hasIndex(args[0]) then
+g.util[args[0]].help
+else if g.fs.hasIndex(args[0]) then
+g.fs[args[0]].help
+else
+print(g.error(""Command not found: ""+args[0]))
+return 
+end if
+else
+self.help
+return 
+end if
+end function
+g.util.help={""name"":""help"",""shortDescription"":""Displays a list of commands."",""exec"":@doHelp,""help"":@helpHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/terminal.src","terminalHelp=function
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.l2("" Starts a terminal on the current context."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
+print(text)
+end function
+doTerminal=function(args)
+context=g.stack[g.context.index]
+if not context.shell then print(g.error(""Current context is not a shell.""))
+term=g.func.find(context.computer.File(""/""),""Terminal.exe"",""b"").push(null)[0]
+if term!=null then
+context.shell.launch(term.path)
+else
+print(g.const.indent+g.y1(""Falling back to start_terminal...""))
+context.shell.start_terminal
+end if
+end function
+g.util.terminal={""name"":""terminal"",""shortDescription"":""Starts a terminal on the current context."",""exec"":@doTerminal,""help"":@terminalHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/proxy.src","proxyHelp=function
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" {#}"")+g.l2("" Switches the selected proxy to the context in the stack at the provided index."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-c/clean]"")+g.l2("" Corrupts the log file on every proxy in the chain of connected proxies. (Note: This only effects contexts in the stack with 'proxy' in the source.)"")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-d/disconnect]"")+g.l2("" Corrupts the log file on every proxy in the chain of connected proxies, and then removes them from the stack. (Note: This only effects contexts in the stack with 'proxy' in the source.)"")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-s/start]"")+g.l2("" Connects to each proxy successively, making each new connection from the previous one.  Uses the last one in the chain as the source for attacks that leave logs."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
+print(text)
+end function
+doProxy=function(args)
+if args==null or args==[] then
+self.help
+else if args.len==1 and (args[0]==""-s"" or args[0]==""start"") then
+g.func.getMap
+g.func.connect_proxies
+else if args.len==1 and (args[0]==""-c"" or args[0]==""clean"") then
+g.func.clean_proxies(0)
+else if args.len==1 and (args[0]==""-d"" or args[0]==""disconnect"") then
+g.func.clean_proxies(1)
+else if args.len==1 and typeof(args[0].to_int)==""number"" then
+if g.stack.hasIndex(args[0]) then
+g.func.set_proxy(args[0])
+else
+print(g.error(""The specified index does not exist in the stack.""))
+end if
+else
+self.help
+end if
+end function
+g.util.proxy={""name"":""proxy"",""shortDescription"":""Manages the proxy chain."",""exec"":@doProxy,""help"":@proxyHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/log.src","logHelp=function
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.l2("" Corrupts the log file on the current context machine."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-a/all]"")+g.l2("" Corrupts the log file on every context in the stack."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-d/download]"")+g.l2("" Downloads the log file from the current context to the home computer."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
+print(text)
+end function
+doLog=function(args)
+if args==null or args==[] then
+g.func.corrupt_log(g.context.index)
+else if args[0]==""-h"" or args[0]==""help"" then
+self.help
+else if args[0]==""-a"" or args[0]==""all"" then
+for c in g.stack.indexes
+if c!=""0"" and typeof(c.to_int)==""number"" then g.func.corrupt_log(c)
+end for
+else if args[0]==""-d"" or args[0]==""download"" then
+g.func.download_log(g.context.index)
+else
+print(g.error(""Invalid argument: ""+args[0]+g.const.ni))
+end if
+end function
+g.util.log={""name"":""log"",""shortDescription"":""Corrupts or downloads log files."",""exec"":@doLog,""help"":@logHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/hackshop.src","hackshopHelp=function
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.l2("" Prints a random hackshop IP address."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
+print(text)
+end function
+doHackshop=function(args=null)
+if args!=null and args!=[] then
+self.help
+return 
+end if
+hackshop=g.func.getHackshop
+print(g.const.indent+g.s3(""Hackshop: ""+hackshop))
+end function
+g.util.hackshop={""name"":""hackshop"",""shortDescription"":""Prints a random hackshop IP address."",""exec"":@doHackshop,""help"":@hackshopHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/ip.src","ipHelp=function
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.l2("" Generates a random IP address."")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
+print(text)
+end function
+doIp=function(args=null)
+if not args or args==[] then
+print(g.const.indent+g.o1(g.func.getRandomIp))
+else
+if args[0]==""-h"" or args[0]==""help"" then
+self.help
+end if
+end if
+end function
+g.util.ip={""name"":""ip"",""shortDescription"":""Generates a random IP address."",""exec"":@doIp,""help"":@ipHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/htop.src","htopHelp=function
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.l2("" Runs an htop process which turns HEX into a process and resource utilization monitor.  Exit with ctrl-c."")+g.const.nl
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
+print(text)
+end function
+htop=function(args=null)
+if args!=null and args.len>0 then
+self.help
+return 
+end if
+context=g.stack[g.context.index]
+if [""computer"",""shell""].indexOf(context.type)==null then
+print(g.error(""Incorrect context type (Requires computer or shell): ""+context.type))
+return 
+end if
+while 1
+hostname=context.computer.get_name
+lines=context.computer.show_procs.split(""\n"")[1:]
+procs=[]
+users=[]
+memory=0
+cpu=0
+admin=0
+for line in lines
+parts=line.split("" "")
+process={""user"":parts[0],""pid"":parts[1],""cpu"":parts[2][:-1].val,""memory"":parts[3][:-1].val,""command"":parts[4]}
+procs.push(process)
+end for
+for proc in procs
+if proc.user==""root"" and proc.command==""dsession"" then admin=1
+if (proc.command==""dsession"" or proc.command==""Xorg"") and users.indexOf(proc.user)==null then
+users.push(proc.user)
+end if
+memory=memory+proc.memory
+cpu=cpu+proc.cpu
+end for
+if cpu>95 then
+cpu_color=g.colors.r1
+else if cpu>90 then
+cpu_color=g.colors.o1
+else if cpu>80 then
+cpu_color=g.colors.y1
+else
+cpu_color=g.colors.s3
+end if
+cpu_squares=ceil(20*(cpu/100))
+cpu_blanks=20-cpu_squares
+cpu_bar=""<color=""+cpu_color+"">""+""#""*cpu_squares+""</color><color=#ffffff00>""+""#""*cpu_blanks+""</color>""
+if memory>94 then
+memory_color=g.colors.r1
+else if memory>89 then
+memory_color=g.colors.o1
+else if memory>79 then
+memory_color=g.colors.y1
+else
+memory_color=g.colors.s3
+end if
+memory_squares=ceil(20*(memory/100))
+memory_blanks=20-memory_squares
+memory_bar=""<color=""+memory_color+"">""+""#""*memory_squares+""</color><color=#ffffff00>""+""#""*memory_blanks+""</color>""
+output=g.g2(""<size=120%>Monitoring: ""+context.computer.get_name+"" [""+context.public+""] [""+context.local+""]</size>"")+g.const.nl*2
+output=output+""Running Processes: ""+procs.len+g.const.nl
+output=output+""Users Online: ""+users.len+g.const.nl
+output=output+""CPU Utilization: [""+cpu_bar+""]==[ <color=""+cpu_color+"">""+cpu+""%</color> ]""+g.const.nl
+output=output+""RAM Utilization: [""+memory_bar+""]==[ <color=""+memory_color+"">""+memory+""%</color> ]""+g.const.nl*2
+if admin then
+output=output+""<size=140%><mark=""+g.colors.r1+""99>""+"" ""*12+""<b>ADMIN ONLINE</b>""+"" ""*12+""</mark></size><color=#ffffff00>|</color>""+g.const.nl*2
+end if
+procList=""<voffset=0.5em>""+g.d1(""USER"")+""<pos=130>""+g.d1(""PID"")+""<pos=210>""+g.d1(""CPU"")+""<pos=290>""+g.d1(""RAM"")+""<pos=370>""+g.d1(""COMMAND"")+""</voffset>""+g.const.nl
+for proc in procs
+if proc.user==""root"" then
+procList=procList+g.r1(""root"")
+else if proc.user==""guest"" then
+procList=procList+g.d1(""guest"")
+else
+procList=procList+g.s3(proc.user)
+end if
+procList=procList+""<pos=130>""+g.g2(proc.pid)+""<pos=210>""
+if proc.cpu>95 then
+procList=procList+g.r1(proc.cpu+""%"")
+else if proc.cpu>90 then
+procList=procList+g.o1(proc.cpu+""%"")
+else if proc.cpu>80 then
+procList=procList+g.y1(proc.cpu+""%"")
+else
+procList=procList+g.s3(proc.cpu+""%"")
+end if
+procList=procList+""<pos=290>""
+if proc.memory>94 then
+procList=procList+g.r1(proc.memory+""%"")
+else if proc.memory>89 then
+procList=procList+g.o1(proc.memory+""%"")
+else if proc.memory>79 then
+procList=procList+g.y1(proc.memory+""%"")
+else
+procList=procList+g.s3(proc.memory+""%"")
+end if
+procList=procList+""<pos=370>""+g.b1(proc.command)+g.const.nl
+end for
+output=output+procList
+print(output,1)
+wait(0.5)
+end while
+end function
+g.util.htop={""name"":""htop"",""shortDescription"":""Turns HEX into an HTOP daemon"",""exec"":@htop,""help"":@htopHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/sudo.src","sudoHelp=function(self)
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
+text=text+g.g2(self.name)+g.l2("" Attempts to get a root shell by brute-forcing the password and adds it to the stack if successful"")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [password]"")+g.l2("" Gets a root shell with the supplied password and adds it to the stack"")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [username] [password]"")+g.l2("" Gets a shell with the supplied user credentials and adds it to the stack"")+g.const.ni
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
+print(text)
+end function
+doSudo=function(args=null)
+argsStr=g.func.serialize(args,1).replace(""char(10)"","""").replace(""char(13)"","""").replace(""\\n"","""").replace(""\n"","""")
+if g.context.index!=""0"" and not g.util.sudo.data.hasIndex(""remoted"") then
+src=""g = get_custom_object""+char(10)+""g.registerExtensions""+char(10)+""g.util.sudo.data.remoted = 1""+char(10)+""g.util.sudo.exec(""+argsStr+"")""
+g.func.run(src)
+else
+if g.util.sudo.data.hasIndex(""remoted"") then g.util.sudo.data.remove(""remoted"")
+if args==null or args==[] then
+for idx in g.rt.indexes
+result=get_shell(""root"",g.rt[idx])
+if result==null then continue
+if typeof(result)==""string"" then
+print(g.error(result))
+return 0
+end if
+if typeof(result)==""shell"" then
+print(g.const.indent+g.g1(""Root shell obtained with password ""+g.rt[idx]))
+source=g.stack[g.context.index].source
+ctx=result.createContext(source)
+g.stack.add(ctx)
+return 1
+else
+print(g.error(""An unknown error occurred.""))
+return 0
+end if
+end for
+else if args.len==1 then
+if args[0]==""-h"" or args[0]==""help"" then
+self.help
+return 1
+else
+password=args[0]
+result=get_shell(""root"",password)
+if result==null then
+print(g.error(""Invalid password.""))
+return 0
+end if
+if typeof(result)==""string"" then
+print(g.error(result))
+return 0
+end if
+if typeof(result)==""shell"" then
+source=g.stack[g.context.index].source
+ctx=result.createContext(source)
+g.stack.add(ctx)
+return 1
+else
+print(g.error(""An unknown error occurred.""))
+return 0
+end if
+end if
+else if args.len==2 then
+username=args[0]
+password=args[1]
+result=get_shell(username,password)
+if result==null then
+print(g.error(""Invalid credentials.""))
+return 0
+end if
+if typeof(result)==""string"" then
+print(g.error(result))
+return 0
+end if
+if typeof(result)==""shell"" then
+source=g.stack[g.context.index].source
+ctx=result.createContext(source)
+g.stack.add(ctx,1)
+return 1
+else
+print(g.error(""An unknown error occurred.""))
+return 0
+end if
+else
+self.help
+return 0
+end if
+end if
+end function
+g.util.sudo={""name"":""sudo"",""shortDescription"":""Get root or user shell"",""exec"":@doSudo,""help"":@sudoHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/download.src","downloadHelp=function(self)
+text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.nl
+text=text+g.g2(self.name)+g.b3("" [path or filename]"")+g.l2("" Downloads file at the specified path.  If a filename is provided instead, searches for and downloads all files matching the provided name (use * for wildcard). Files are saved in the targets folder."")+g.const.nl
+text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
+print(text)
+end function
+doDownload=function(args=null)
+if args!=null and args.len==1 an",1);d

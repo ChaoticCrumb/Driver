@@ -1,0 +1,257 @@
+// Driver v1.0 — Remote Hacktool Installer
+// Digital flash drive for deploying Grey Hack tooling.
+
+s = get_shell
+c = s.host_computer
+
+DRIVER_PATH    = "/root/Driver"
+DRIVER_VERSION = "1.0.0"
+SRC_5HELL      = DRIVER_PATH + "/src/5hell"
+SRC_HEX        = DRIVER_PATH + "/src/hex"
+TMP_PATH       = "/root/"
+
+// --- Theme (ember palette) ---
+
+driver = {}
+
+driver.palette = {
+    "accent":       "#FF8400FF",
+    "accentBright": "#FFB347FF",
+    "accentDeep":   "#B85A00FF",
+    "ember1":       "#FFAA3BFF",
+    "ember2":       "#FFA031FF",
+    "ember3":       "#FF952CFF",
+    "ember4":       "#FF8929FF",
+    "ember5":       "#FF7C2BFF",
+    "ember6":       "#FF6B2EFF",
+    "text":         "#FFF1E2FF",
+    "muted":        "#D7A173FF",
+    "border":       "#7A3B00FF",
+    "info":         "#FFB866FF",
+    "success":      "#FFD089FF",
+    "warning":      "#FFC857FF",
+    "error":        "#FF6B3DFF",
+    "shadow":       "#4D2600FF"
+}
+
+driver.color = function(name)
+    if driver.palette.hasIndex(name) then return driver.palette[name]
+    return driver.palette["text"]
+end function
+
+driver.text = function(name, text, bold=1)
+    color = driver.color(name)
+    text = str(text)
+    if bold then return "<color=" + color + "><b>" + text + "</color></b>"
+    return "<color=" + color + ">" + text + "</color>"
+end function
+
+driver.badge = function(text, tone="accent")
+    text = str(text).upper
+    return driver.text("border", "[") + driver.text(tone, text) + driver.text("border", "]")
+end function
+
+driver.rule = function(width=60, tone="border")
+    rule = ""
+    for i in range(1, width)
+        rule = rule + "="
+    end for
+    return driver.text(tone, rule)
+end function
+
+driver.header = function(title, subtitle="")
+    line = driver.badge("driver", "accent") + " " + driver.text("accentBright", title.upper)
+    if subtitle != "" then line = line + driver.text("muted", " :: " + subtitle, 0)
+    return line
+end function
+
+driver.msg = function(tone, msg)
+    badgeTone = "accent"
+    if tone == "error"   then badgeTone = "error"
+    if tone == "success" then badgeTone = "success"
+    if tone == "warning" then badgeTone = "warning"
+    if tone == "info"    then badgeTone = "accentBright"
+    return driver.badge("driver", badgeTone) + " " + driver.text(tone, msg, 0)
+end function
+
+driver.prompt = function()
+    return driver.badge("driver") + " " + driver.text("accentDeep", ">>") + " "
+end function
+
+driver.splash = function()
+    artLines = [
+        "      :::::::::  :::::::::  ::::::::::: :::     ::: :::::::::: ::::::::: ",
+        "     :+:    :+: :+:    :+:     :+:     :+:     :+: :+:        :+:    :+: ",
+        "    +:+    +:+ +:+    +:+     +:+     +:+     +:+ +:+        +:+    +:+  ",
+        "   +#+    +:+ +#++:++#:      +#+     +#+     +:+ +#++:++#   +#++:++#:    ",
+        "  +#+    +#+ +#+    +#+     +#+      +#+   +#+  +#+        +#+    +#+    ",
+        " #+#    #+# #+#    #+#     #+#       #+#+#+#   #+#        #+#    #+#     ",
+        "#########  ###    ### ###########     ###     ########## ###    ###   "
+    ]
+    artTones = ["accentBright", "ember1", "ember2", "ember3", "ember4", "ember5", "ember6"]
+    print(driver.rule(74, "shadow"), 1)
+    for i in range(0, artLines.len - 1)
+        print(driver.text(artTones[i], artLines[i], 0))
+    end for
+    print(driver.header("hacktool installer", "5hell  ·  HEX"))
+    print(driver.text("info", "  version " + DRIVER_VERSION, 0))
+    print(driver.rule(74))
+end function
+
+// --- Utilities ---
+
+ensureDir = function(path)
+    if c.File(path) != null then return
+    parts = path.split("/")
+    parts.remove("")
+    built = ""
+    for part in parts
+        built = built + "/" + part
+        if c.File(built) == null then
+            parent = built[: built.lastIndexOf("/")]
+            if parent == "" then parent = "/"
+            result = c.create_folder(parent, part)
+            if result != 1 then
+                print(driver.msg("error", "mkdir failed: " + built + " (" + result + ")"))
+            end if
+        end if
+    end for
+end function
+
+isInstalled = function(checkPath)
+    return c.File(checkPath) != null
+end function
+
+// --- 5hell Installer ---
+
+install5hell = function()
+    print(driver.msg("info", "installing 5hell v4.3.6..."))
+    print("  " + driver.text("muted", "building " + SRC_5HELL + "/5hell.src...", 0))
+
+    result = s.build(SRC_5HELL + "/5hell.src", "/root/", 0)
+    if c.File("/root/5hell") == null then
+        print(driver.msg("error", "build failed: " + result))
+        return 0
+    end if
+
+    print(driver.msg("success", "5hell installed  ->  /root/5hell"))
+    return 1
+end function
+
+// --- HEX Installer ---
+
+INSTALLER_COUNT = 9
+
+installHex = function()
+    print(driver.msg("info", "installing HEX..."))
+    ensureDir(TMP_PATH)
+
+    i = 0
+    while i < INSTALLER_COUNT
+        src = SRC_HEX + "/installer" + i + ".src"
+        bin = TMP_PATH + "/installer" + i
+
+        if c.File(src) == null then
+            print(driver.msg("error", "missing: " + src))
+            return 0
+        end if
+
+        print("  " + driver.text("muted", "building  installer" + i + "...", 0))
+        result = s.build(src, TMP_PATH, 1)
+        
+        if c.File(bin) == null then
+            print(driver.msg("error", "build failed (installer" + i + "): " + result))
+            return 0
+        end if
+
+        print("  " + driver.text("muted", "running   installer" + i + "...", 0))
+        s.launch(bin, "")
+
+        i = i + 1
+    end while
+
+    print(driver.msg("success", "HEX installed  ->  /root/hex"))
+    return 1
+end function
+
+// --- Tool Registry ---
+
+TOOLS = [
+    {
+        "id":    "5hell",
+        "name":  "5hell",
+        "ver":   "v4.3.6",
+        "desc":  "Modular hacktool by Plu70",
+        "check": "/root/5hell"
+    },
+    {
+        "id":    "hex",
+        "name":  "HEX",
+        "ver":   "",
+        "desc":  "Penetration testing framework",
+        "check": "/root/hex"
+    }
+]
+
+installTool = function(id)
+    if id == "5hell" then return install5hell()
+    if id == "hex"   then return installHex()
+    return 0
+end function
+
+// --- UI ---
+
+renderMenu = function()
+    print("")
+    print(driver.header("available tools"))
+    print(driver.rule(74))
+    i = 0
+    for t in TOOLS
+        if isInstalled(t["check"]) then
+            statusBadge = driver.badge("installed", "success")
+        else
+            statusBadge = driver.badge("not installed", "muted")
+        end if
+        ver = ""
+        if t["ver"] != "" then ver = " " + driver.text("muted", t["ver"], 0)
+        print("  " + driver.text("border", "[") + driver.text("accentBright", str(i)) +
+              driver.text("border", "]") + "  " + driver.text("accent", t["name"]) + ver +
+              driver.text("muted", "  ::  ", 0) + driver.text("text", t["desc"], 0) +
+              "  " + statusBadge)
+        i = i + 1
+    end for
+    print(driver.rule(74))
+    print("  " + driver.text("border", "[") + driver.text("accentBright", "q") +
+          driver.text("border", "]") + "  " + driver.text("muted", "quit", 0))
+    print("")
+end function
+
+// --- Entry Point ---
+
+driver.splash()
+
+while true
+    renderMenu
+    choice = user_input(driver.prompt())
+
+    if choice == "q" or choice == "quit" or choice == "exit" then exit
+
+    idx = choice.to_int
+    if typeof(idx) != "number" or idx < 0 or idx >= TOOLS.len then
+        print(driver.msg("error", "invalid selection"))
+        continue
+    end if
+
+    tool = TOOLS[idx]
+    print("")
+
+    if isInstalled(tool["check"]) then
+        confirm = user_input(driver.msg("warning", tool["name"] + " already installed. reinstall? [y/N]: "))
+        if confirm.lower != "y" then continue
+    end if
+
+    print("")
+    installTool(tool["id"])
+    print("")
+    user_input(driver.text("muted", "  press enter to continue...", 0), 0, 1)
+end while

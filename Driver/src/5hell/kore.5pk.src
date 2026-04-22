@@ -1,0 +1,1434 @@
+if DEBUG then print("<size=75%>loading kore.5pk v 4.3.6...(75.254)")
+command.kore = function(arg1,arg2=0,arg3=0,arg4=0)
+    time_s = time
+    kore_usage_info = "<u>"+colorGold+"KORE 3.0 || automation || helper || Goddess of the DEAD and GRAIN || rkit || security"+char(10)+char(10)+
+    "Usage: <b>kore [-r|--rkit]</b> -- automatic rkit generation"+char(10)+
+	"-- create rkit folder if it doesn't exist"+char(10)+
+    "-- copy metaxploit.so, crypto.so, and 5hell to home_dir/rkit"+char(10)+
+	"-- NB: pulls 5hell from launch path of active 5hell script"+char(10)+
+	"-- create database.csv within rkit if it doesn't exist "+char(10)+
+	"-- moves ~/tables to rkit"+char(10)+
+	"-- offers to run pwgen | pwgen hash if ~/tables is not found"+char(10)+char(10)+
+    "Usage: <b>kore [-s|--secure]</b> -- automatic secure system:"+char(10)+
+    "-- runs:<u> usr -r root / | grp -r root / | rm /etc/passwd"+char(10)+
+    "----    <u> grep -f Bank | rm |  | grep -f Mail | rm | rclean | lock"+char(10)+
+	"Usage: <b>kore [-sc]</b> -- as above but uses silentclean instead of rclean"+char(10)+
+	"-- NB: kore -s will remove <b>all</b> copies of Bank.txt and Mail.txt"+char(10)+
+	"-- please rename these files if you wish to keep them"+char(10)+char(10)+
+	"Usage: <b>kore [-S]</b> -- paranoid secure; works as above plus:"+char(10)+
+	"-- removes /bin, /usr, and /home"+char(10)+char(10)+
+    "Usage: <b>kore [--hdd]</b> -- prompts for hdd size in bytes"+char(10)+
+    "-- writes size to /virt/hdd.io"+char(10)+
+    "-- bios uses this to report remaining hdd space"+char(10)+char(10)+
+	"Usage: kore [--override] [colorDefinition] [new_colorcode]"+char(10)+
+	"-- override a default color code at runtime"+char(10)+
+	"---- use with caution"+char(10)+
+	"-- place in your <b>do.rc</b> for custom themes without recompiling"+char(10)+
+	"-- see 5hell.src for valid colorDefinitions"+char(10)+
+	"-- you may also hard code these overrides in 5hell.src"+char(10)+
+	"-- nb: currently only color definitions may be overridden (i'm debating others)"+char(10)+char(10)+
+	// "Foolish: kore [--override] [ANY_GLOBAL_VARIABLE] [YOUR_POISON]"+char(10)+
+	// "-- absolutely hose yourself or another by overwriting any global variable"+char(10)+
+	// "-- you will absolutely shoot your eye out with this"+char(10)+
+	// "---- therefore in order to use it you "+colorWarning+"must enter your password"+char(10)+
+	// "---- if you have not set at least one password or have left it as default:"+char(10)+
+	// "------ this function will fail"+char(10)+
+	// "-- seriously, what kind of madperson would even use this??"+char(10)+
+	// "-- jk jk, uncomment the function if you want to use it"+char(10)+
+	// "-- or use glosures to edit globals"+char(10)+
+	"Usage: kore [--silent] -- toggle silent_print mode on and off"+char(10)+
+	"-- place at the top and bottom of your do.rc to suppress startup output"+char(10)+char(10)+
+	"Usage: kore [--control] [opt:bool:spool]-- activate kore's daemon mode"+char(10)+
+	"-- creates a daemon managed by DaemonManager;"+char(10)+
+	"-- see <b>shell --daemons</b>"+char(10)+
+	"-- see <b>dm -h"+char(10)+
+	"-- listens on socket_in and creates a "+colorCyan+"macro"+CT+" from the contents of the file"+char(10)+
+	"-- each macro is given a job number and executed"+char(10)+
+	"-- output is written to currentPath/socket_out"+char(10)+
+	"---- <b>clears</b> socket_out before each write"+char(10)+
+	"-- optionally spools all output to kore.log# if spool boolean is true"+char(10)+
+	"---- # is an int starting at 1 and incrimenting for each new log file created"+char(10)+
+	"---- a new log file is created on initiation or when the log reaches 160kb"+char(10)+
+	"---- the first log created will be kore.log, without a numeral suffix"+char(10)+
+	"-- allows controlling one or more 5hell sessions through a single shared file"+char(10)+
+	"-- write to socket_in like any other do script"+char(10)+
+	"-- write HALT (with no other text) to socket_in to terminate kore control"+char(10)+
+	"-- you may also use the Daemon Manager to stop kore's daemon, instead"+char(10)+
+	"---- see <b>dm -h"+char(10)+
+	char(10)+
+	"New: kore --control will now also run <b>hashim -d</b> in parallel"+char(10)+
+	"-- write/transmit info to the same 'pass' file used by hashim to trigger"+char(10)+
+	"-- remove the pass file if you do not want kore to run hashim in parallel"+char(10)+
+	"--note: you may add and remove the file at will whiel --control is running"+char(10)+
+	char(10)+
+	"--NB: cannot spool non-returned text; aka metaxploit.overflow text"+char(10)+
+	"---- that text goes straight to the terminal and bypasses function returns"+char(10)+
+	"NOTE: writing to socket_in too quickly can cause commands to be missed!"+char(10)+
+	"-- adjust the TICK to suite your needs"+char(10)+char(10)+
+	"NOTE: kore once had more functionality and will once again soon"
+    if arg1 == "help" or arg1 == "-h" then return kore_usage_info
+	
+	kore_control = function()
+		t = command.time("-t")
+		manager = new DaemonManager
+		daemon = manager.Start("kore", t)
+		TICK = .1
+	
+		kc = {}
+		kc.socket_rs = null
+		kc.socket_in = null
+		kc.socket_out = null
+		kc.log_output = null
+		kc.verbose = outer.arg3
+		kc.spool = outer.arg2
+		kc.pass_file = globals.get_file(get_custom_object.HOME.sharedfile)
+		kc.cg = colorGold
+		kc.cw = colorWhite
+		set_sockets = function()
+			print kc.cg+"kore: rshell socket not set" // Soon(tm)
+			kc.socket_rs = "" // optional input rshell name. for menu: options to determine in\out socket via one or more rshells
+
+			print kc.cg+"kore: initializing socket_in/socket_out" // for menu: option to set multiple input/output sockets and set rules for each
+			//
+			command.poke("-n","socket_in")
+			kc.socket_in = globals.get_file("socket_in") // input file 
+			//
+			command.poke("-n","socket_out")
+			kc.socket_out = globals.get_file("socket_out") // output file 
+
+			print kc.cg+"kore: initializing kore.log"
+			
+			if globals.spoolpath then kc.log_output = globals.get_file(globals.spoolpath)
+			 
+			if typeof(kc.log_output) != "file" then
+				fb = globals.get_file(currentPath).get_files 
+				ob = []
+				lfn = "kore.log"
+				for f in fb 
+					if f.name.indexOf("kore.log") != null and not f.is_binary then ob.push(f)
+				end for
+				if ob.len > 0 then
+					ob.sort 
+					suff = ob[-1].name.split("\.")[1]
+					if suff.len > 3 then 
+						s = suff[-1]
+						s = str(s.to_int+1)
+						lfn = "kore.log"+s
+					else 
+						lfn = "kore.log1"
+					end if
+				end if
+				kc.log_output = command.poke(lfn)
+			end if 
+			
+			if not kc.socket_in or not kc.socket_out or not kc.log_output then return "write error"
+			print kc.cg+"</size=75%>kore: new files created "+colorRed+" locking </color> system..."
+			print command.perms("lock","all")
+			return kc.cg+"<size=75%>kore: sockets initialized:"+char(10)+
+			kc.cw+"<size=75%>-- socket_in: "+kc.socket_in.path+char(10)+
+			kc.cw+"<size=75%>-- socket_out: "+kc.socket_out.path+char(10)+
+			kc.cw+"<size=75%>-- kore.log: "+kc.log_output.path+char(10)
+
+		end function
+
+		// need to fix logging and output file stuffs
+
+		control_activate = function()
+
+			running = true
+			last = ""
+			spool = 0
+			print kc.cg+"<size=75%>kore: "+kc.cw+"</b>taking control..."
+			print kc.cg+"<size=75%>-- "+kc.cw+"</b>outputting to socket_out: <u>"+kc.socket_out.path
+			if kc.spool then 	
+				spool = kc.log_output
+				globals.spoolpath = kc.log_output.path // the _print override in 5phinx.5pk uses spoolpath, if set
+				print kc.cg+"<size=75%>--"+kc.cw+" spooling to kore.log: <u>"+kc.log_output.path
+			end if
+			print kc.cg+"<size=75%>-- "+kc.cw+"</b>listening on socket_in: <u>"+kc.socket_in.path+char(10)+kc.cg+"<"+kc.cw+"o</color>>"
+			jb = 0 // job counter
+			last_pass = ""
+			new_pass = ""
+			while running and ((daemon and manager.Check(daemon)) or not manager.__initialized)
+				if not p_validate(kc.socket_in,"name") then return colorWarning+"kore: socket_in has been deleted or otherwise invalidated"+char(10)+colorWarning+"-- aborting..."
+				new_read = kc.socket_in.get_content
+				if new_read != last then 
+					if new_read.trim == "HALT" then 					
+						running = false 	
+						if daemon then manager.Stop(daemon)
+						print("kore: received HALT; halting...")			
+					else				
+						last = new_read 
+						jb = jb + 1
+						print kc.cg+"<size=75%>kore: "+kc.cw+"input received; "+char(10)+kc.cw+"-- creating "+colorMagenta+"job"+jb+CT+" @ st+:"+time
+						print(command.macro("set","job"+jb,kc.socket_in.get_content.trim.replace(char(10)," |  | ")))
+						if kc.verbose then print(command.macro("-v","job"+jb),0,0,kc.socket_out.path) else print(command.macro("job"+jb),0,0,kc.socket_out.path)	
+						print kc.cg+"<size=75%><u>kore: "+kc.cw+"listening on "+kc.socket_in.path+"..."
+						print kc.cg+"<"+kc.cw+"o</color>>"
+					end if
+				end if
+
+				// experimental hashim plugin
+				if p_validate(kc.pass_file, "name") then
+					new_pass = kc.pass_file.get_content
+					if new_pass != last_pass and new_pass != "" then
+						last_pass = new_pass
+						print command.hashim("-f",kc.pass_file.path)
+						last_pass = kc.pass_file.get_content
+						print kc.cg+"<size=75%><u>kore: "+kc.cw+"listening on "+kc.socket_in.path+"..."
+						print kc.cg+"<"+kc.cw+"o</color>>"
+					end if
+				end if
+				// end experimental hashim plugin
+
+				wait(TICK)
+			end while
+			globals.spoolpath = 0
+			return kc.cg+"kore: "+kc.cw+"relinquishing control..."
+		end function
+		soc = set_sockets
+		if soc == "write error" then return colorError+"kore: i/o initialization failed"+char(10)+"-- unable to write to current path" else print soc
+		return control_activate
+	end function
+    
+    make_rkit = function()
+		
+		if globals.instance then pro_path = globals.instance.path else return "kore: 5hell instance deleted. Unable to automate rkit construction."+char(10)+
+		"kore: run 5hell from the latest version to build rkit"+char(10)+
+		"kore: please do not delete the binary until kore -r is complete"
+		print("Validating "+home_dir+"/rkit...")
+		print(command.mkdir(home_dir+"/rkit"))
+		if not globals.get_file(home_dir+"/rkit") then return "<size=75%>kore: failed to create rkit: permission denied"
+		print("kore: copying: "+colorCyan+pro_path+CT+" to "+home_dir+"/rkit/5hell")
+		print(command.cp(pro_path, home_dir+"/rkit/5hell" ))
+		if not globals.get_file(home_dir+"/rkit/"+globals.instance.name) then print "<size=75%>kore: failed to copy 5hell: permission denied"
+		mpath = null
+		mpath = command.tree("/","metaxploit.so","1","N")
+		if mpath and mpath.parent.name == "rkit" then
+			mpath.move(mpath.parent.path,mpath.name+".bku")
+			m_path_2 = command.tree("/","metaxploit.so","1","N")
+			if m_path_2 then 
+				mpath.delete	
+				mpath = m_path_2
+			else 	
+				mpath.move(mpath.parent.path,mpath.name.remove(".bku"))
+			end if
+		end if
+		if typeof(mpath) != "file" then 
+			print "<size=75%>kore: metaxploit.so not found"
+		else 
+			print("<size=75%>kore: copying: "+mpath.path+" to "+home_dir+"/rkit")
+			print "<size=75%>kore: if this is not the correct .so then"+char(10)+
+			"<size=75%>-- please move the correct .so higher in the file tree"+char(10)+
+			"<size=75%>-- such as in /lib"
+			command.cp(mpath.path, home_dir+"/rkit")
+			if not globals.get_file(home_dir+"/rkit/"+mpath.name) then print "<size=75%>kore: failed to copy metaxploit.so: permission denied"
+		end if
+		cpath = null				
+		cpath = command.tree("/","crypto.so","1","N")
+		if cpath and cpath.parent.name == "rkit" then
+			cpath.move(cpath.parent.path,cpath.name+".bku")
+			c_path_2 = command.tree("/","crypto.so","1","N")
+			if c_path_2 then 
+			cpath.delete	
+			cpath = c_path_2
+			else 
+				cpath.move(cpath.parent.path,cpath.name.remove(".bku"))
+			end if
+		end if
+		if typeof(cpath) != "file" then 
+			print "<size=75%>kore: crypto.so not found"
+		else 
+			print("kore: copying: "+cpath.path+" to "+home_dir+"/rkit/"+cpath.name)
+			command.cp(cpath.path, home_dir+"/rkit")
+			if not globals.get_file(home_dir+"/rkit/"+cpath.name) then print "<size=75%>kore: failed to copy crypto.so: permission denied"
+		end if 
+		print "kore: ensuring "+colorWhite+home_dir+"/rkit/database.csv"+CT+" exists..."
+		print command.poke(home_dir+"/rkit/database.csv")
+		print "kore: ensuring "+colorWhite+home_dir+"/rkit/do.rc exists..."
+		dorc = command.poke(home_dir+"/rkit/do.rc")
+		if dorc.get_content == "" then dorc.set_content("# do.rc: resource configuration using the 'do' protocol"+char(10)+
+														"# * put any number of commands to be executed (piping supported) in order at startup"+char(10)+
+														"# * type commands exactly as if typing on 5hell's command line or writing a macro"+char(10)+
+														"# * each newline is 'pressing enter'"+char(10)+
+														"# * use the # character for comments"+char(10)+
+														"# * all comments (including these) are optional (you can delete all this)"+char(10)+
+														"# * empty, uncommented lines will result in a blank line printed IF:"+char(10)+
+														"# -- you have 5hell.src set to print a line before the prompt"+char(10)+
+														"# * using do.rc is optional but it's a great place to define macros on startup"+char(10)+
+														"# NOTE: you may place do.rc in your Config folder"+char(10)+
+														"# -- this is in addition to OR instead of placing it in rkit"+char(10)+
+														"# -- the do.rc located in the <b>Config<b> folder will take priority"+char(10)+
+														"# -- meaning it will be executed instead of ~/rkit/do.rc"+char(10)+
+														"# -- this allows you to have a 'home' and 'away' version of do.rc"+char(10)+
+														"# To Suppress output during startup;"+char(10)+
+														"# uncomment the below line AND the corresponding line at the bottom of the file:"+char(10)+
+														"# kore --silent"+char(10)+
+														"# "+char(10)+ 
+														"# THEME section"+char(10)+
+														"# below are examples of a colorDefinition override used to adjust colors to fit your theme"+char(10)+
+														"# kore --override colorDefault <noparse><#FFFFFFFF></noparse>"+char(10)+
+														"# kore --override color5phinxText <noparse><#00FFFFFF></noparse>"+char(10)+
+														"# New: Marinette, by Hecate, has a bunch of theme presets that you can activate!"+char(10)+
+														"# --you can get it at: https://github.com/shippingfandom/Marinette"+char(10)+
+														"# --below is a handy macro to use to switch Marinette themes at runtime:"+char(10)+
+														"# macro set theme "" glosure -e \"" ((set globals 'SILENT' 2)) \"" || clipa \"" (mari-load-theme ' \"" || append @clipa @pipe || append @clipa ') || glosure -e \"" ((set globals 'SILENT' 0)) \"" || glosure -e \@a "" "+char(10)+														"# END THEME"+char(10)+
+														"# remove the '#'s below and add your commands"+char(10)+
+														"# "+char(10)+
+														"# "+char(10)+
+														"# "+char(10)+
+														"# end of user commands"+char(10)+
+														"# uncomment the below line to have kore secure your system on launch"+char(10)+
+														"# kore -s"+char(10)+
+														"# uncomment the line below if you uncommented the corresponding one at the top"+char(10)+
+														"# kore --silent")
+		tab_path = get_custom_object.HOME["t5"].remove("/t5")
+		print "kore: ensuring "+colorWhite+tab_path+CT+" exists within rkit..."
+		t = globals.get_file(tab_path)
+		if not t then t = command.grep("-f","^tables$","/")
+		if typeof(t) != "file" then 
+			print "<size=75%>kore: failed to locate tables"+char(10)+"<size=75%>-- run pwgen | pwgen hash to create? [N/y]"
+			if user_input("||: "+colorRed,0,1).lower == "y" then print command.shell("pwgen || pwgen hash") else print "kore: skipping tables..."
+		else 
+			print colorGold+"kore: found "+colorWhite+t.path
+		end if
+		if typeof(t) == "file" and t.parent.name != "rkit" then t.copy(home_dir+"/rkit",t.name)
+		return colorGold+"<size=75%>kore: rkit creation complete"
+	end function
+
+    secure_it = function()
+        print colorGold+"<size=75%>kore: "+colorGreen+"running secure protocol..."
+        print colorGold+"<size=75%>kore: "+colorGreen+"</b>changing ownership of all files to root..."
+		c = null
+        c = command.usr("-r","root","/")
+		if c then print "<size=75%>"+c
+        print colorGold+"<size=75%>kore: "+colorGreen+"</b>changing group setting of all files to root..."
+        c = null
+		c = command.grp("-r","root","/")
+		if c then print "<size=75%>"+c
+		//print "<size=75%>kore: removing /lib/kernel_module.so"
+		//print "<size=75%>"+ command.rm("/lib/kernel_module.so") // removed bc this now bricks a system
+		print "<size=75%>kore: removing /etc/passwd..." 
+		print "<size=75%>"+ command.rm("/etc/passwd")
+		print "<size=75%>kore: removing *Bank.txt..."
+		bank_files = command.grep("-a","^Bank.txt$","/")
+		if typeof(bank_files) == "list" then
+			for f in bank_files 
+				if DEBUG then print "debug: file: "+f.path
+				if typeof(f) == "file" then print "<size=75%>" + command.rm(f)
+			end for
+		else 
+			print bank_files
+		end if
+		print "<size=75%>kore: removing *Mail.txt..."
+		mail_files = command.grep("-a","^Mail.txt$","/")
+		if typeof(mail_files) == "list" then
+			for f in mail_files 
+				if DEBUG then print "debug: filename: "+f.name
+				print "<size=75%>" + command.rm(f) 
+			end for
+		else 
+			print mail_files
+		end if
+		// end hack
+		if outer.arg1 == "-S" then 
+			if is_home then return colorError+"<size=75%></b>kore: paranoid secure unavaileable on home machine"
+			print colorRed+"<size=75%></b>kore</color>: removing home folder... "
+			print "<size=75%>"+command.rm("-r","/home")
+			print colorRed+"<size=75%></b>kore</color>: removing bin folder..."
+			print "<size=75%>"+command.rm("-r","/bin")
+			print colorRed+"<size=75%></b>kore:</color> removing usr folder..."
+			print "<size=75%>"+command.rm("-r","/usr")
+		else 
+			print "<size=75%>kore: removing guest folder..."
+			print "<size=75%>"+command.rm("-r","/home/guest")
+			print "<size=75%>-- consider manually deleting /home if it is not in use"
+		end if
+		print "<size=75%>kore: scrubbing system.log..."
+		if arg1 == "-sc" then print command.silentclean else print command.rclean(globals.localmachine)
+		print "<size=75%>kore: locking system..."
+        print "<size=75%>" + command.perms("lock","all")
+        return 0
+    end function
+
+    report_hdd = function()
+        print "kore: setting up /virt/hdd.io..."
+        size_of_disk = user_input(colorGold+"kore: "+CT+"please enter your HDD size in bytes:"+char(10)+colorGold+":> </color>").val
+        if typeof(size_of_disk) != "number" or size_of_disk < 1 then return "kore: expects size as a positive integer"
+        print command.mkdir("/virt")
+        print command.poke("/virt/hdd.io", "dev_sda:"+size_of_disk)
+        return 0
+    end function
+
+	override_color = function() 
+		if typeof(arg2) == "string" and typeof(arg3) == "string" then 
+			if arg2.indexOf("color") != null and globals.hasIndex(arg2) then globals[arg2] = arg3 else return "kore: invalid color; override aborted\n-- see 5hell.src for valid colors"
+			return colorGold+"</b>kore: color override complete for:"+char(10)+"-- "+arg3+arg2
+		end if
+		return "kore: invalid input"
+	end function
+	// override_global = function()
+	// 	o_this = outer.arg2
+	// 	consent = [ ( (globals.hasIndex(access_codes)) and globals.access_codes.indexOf(user_input("Please enter one of your 5hell access codes:"+char(10)+":> ",1)) != null ) ]
+	// 	if globals.hasIndex(o_this) and outer.arg3 and consent then
+	// 		globals.o_this = arg3
+	// 		return "kore: overriding globals.<b>"+o_this+"</b> to <b>"+arg3
+	// 	end if
+	// 	return "kore: --override requires an access_code"
+	// end function
+
+	silent_print = function()
+		if globals.SILENT == 0 then globals.SILENT = 2 else globals.SILENT = 0
+		return "<size=75%>kore: silent_print mode toggled off" // this should not print when toggled on
+	end function
+     
+    error = function()
+        return "kore: invalid input"
+    end function
+    switch(str(arg1).lower)
+        case("-r",@make_rkit)
+        case("--rkit",@make_rkit)
+        case("-s",@secure_it)
+		case("-sc",@secure_it)
+        case("--secure",@secure_it)
+        case("--hdd",@report_hdd)
+		case("--override",@override_color)
+		case("--silent",@silent_print)
+		case("--control",@kore_control)
+		//case("--override-global",@override_global)
+		//case("--command",@kore_command)
+    print default(@error)
+    time_f = time - time_s
+    return "<size=75%>kore: task complete in "+time_f+" seconds."
+end function
+command.sphinx = function(arg1, arg2, arg3=0, arg4=0)
+	if arg1 == "help" or arg1 == "-h" then 
+		if arg2 == "extra" then 
+			return colorRed+"5phinx"+CT+" tutorial:"+char(10)+
+			"5phinx is designed for use with your 10-key keypad"+char(10)+
+			"In this tutorial, keys will be indicated by: [<b>#</b>]"+char(10)+
+			"0) <b>sphinx [target_ip]"+char(10)+
+			"1) [<b>0</b>] -- portmap that ip; Reveals: "+char(10)+
+			"-- machines connected directly to the gateway router"+char(10)+
+			"-- machines with ports forwarded to the outside"+char(10)+
+			"-- forwarded machines not connected to the router are shown in grey"+char(10)+
+			"---- when <b>outside</b> of the network"+char(10)+char(10)+
+			"2) Either: { [<b>+</b>] then [<b>1</b>] } OR [<b>3</b>]"+char(10)+
+			"-- ** if not using the keypad, use [<b>=</b>] in place of [<b>+</b>]"+char(10)+
+			"-- this tutorial assumes [<b>3</b>] so go ahead and press 3"+char(10)+
+			"3) Once the databasing is complete, any results are sent to the "+colorOrange+"BUFFER"+char(10)+
+			"-- access malp with the <b>left arrow</b> or the [<b>7</b>] key"+char(10)+
+			"-- then press [<b>5</b>] to access the BUFFER"+char(10)+
+			"-- here you will see anyt object results obtained from your attacks"+char(10)+
+			"4) If you have an object, select it by number and view it's context menu"+char(10)+
+			"-- this menu is a ""handler"" and most objects have one"+char(10)+
+			"-- the 'generic object handler' will handle any objects without a specific handler"+char(10)+
+			"-- so you'll always have a handle on things!"+char(10)+char(10)+
+			"Shells:"+char(10)+
+			"5) If you got a shell object, select it to view the shell handler"+char(10)+
+			"-- there are many options but for now we will simply press [<b>3</b>]"+char(10)+
+			"-- this performs an infiltration:"+char(10)+
+			"-- rkit is given g+rwx, uploaded to /home/guest on the targt, and then given g-rwx"+char(10)+
+			"-- then, 5hell is launched on the target via the rkit uploaded to that shell"+char(10)+
+			"-- this launch will not show up in <b>ps</b> or host_computer.show_procs"+char(10)+
+			"6) You can now get root on your target (if you don't already have it):"+char(10)+
+			"-- on the command line type: <b>brutus | gp"+char(10)+
+			"-- this will get a root shell (on untouched npc machines, not so much players)"+char(10)+
+			"-- it will then activate glasspool shell mirroring on the obtained shell"+char(10)+
+			"-- commands typed will now execute as root on the target"+char(10)+
+			"-- you may launch 5hell again, through galsspool, typing it's relative path"+char(10)+
+			"-- usually just 5hell, as you'll start out in the rkit folder in most cases"+char(10)+
+			"-- congrats, you are now running as root and own the machine!"+char(10)+
+			"7) Continue hacking into the network, or to another"+char(10)+
+			"8) Cleanup: pressing [<b>z</b>] in 5phinx will scrub the system.log"+char(10)+
+			"-- typing <b>sc -d</b> from the command line will remove your rkit and scrub the log"+char(10)+
+			"-- so when done hacking: <b>sc -d</b> and then exit"+char(10)+
+			"Data: databaser (option [<b>3</b>] ) information is written to <b>database.csv</b>"+char(10)+
+			"-- the default location of this file is in your rkit folder but may be placed elsewhere"+char(10)+char(10)+
+			"Round Two:"+char(10)+
+			"Now that you have at least one lib in the database, the next time you probe a network with that lib"+char(10)+
+			"it will display in "+colorCyan+"cyan"+CT+" on the portmap. This lets you know you don't have to database it again."+char(10)+
+			"Instead, you would press [<b>+</b>] or [<b>=</b>] to link to it, and then:"+char(10)+
+			"-- [<b>a</b>]  -- for a single attack that you select from a list"+char(10)+
+			"---- optionally you may directly enter a memory address and unsecure value"+char(10)+
+			"-- [<b>2</b>]  -- roil; fire all attacks at once"+char(10)+
+			"-- [<b>.</b>]  -- dig; diabolical ingress; see <b>dig -h</b> for details"+char(10)+char(10)+
+			"Local Libs:"+char(10)+
+			"To database and or exploit a local lib, instead of a port, you still use [<b>=|+</b>] "+char(10)+
+			"-- at the prompt, press <b>L</b> for local and select a lob from the list"+char(10)+
+			"-- remember any .so in /lib may be exploited. Any of them."+char(10)+
+			"If you followed along you will have pwnd a router and then cleaned up your tracks and vanished without a trace."+char(10)+
+			"Press [<b>F1</b>] for more help. More advanced stuff can be done, poke around a bit."+char(10)+
+			"Remember to use left arrow to toggle between 5phinx and malp"
+		else
+			return colorRed+"<u>5phinx:</color> network penetration test tool"+char(10)+
+			"Press F1 or ? within 5phinx for further help."+char(10)+
+				"Usage: sphinx -- launch 5phinx"+char(10)+
+				"Usage: <b>sphinx [ip] [port]</b>"+char(10)+
+				"-- preset targetIp and targetPort with"+char(10)+
+				"-- port 0 == router port"+char(10)+
+				"-- port 8080 == router http port!!"+char(10)+
+				"Hint: to attack a router within the netwrok target the LAN IP of the router first. "+char(10)+
+				"-- then target port 8080 and exploit it"+char(10)+
+				"-- this is done on the same network as the router"+char(10)+
+				"Hint: Use the arrow keys to access additional windows in 5phinx"+char(10)+
+				"-- Up goes to a useless bank grabber"+char(10)+
+				"-- Right goes to a useful quick menu, right again goes to malp"+char(10)+
+				"-- Down takes you to herme5"+char(10)+
+				"-- Left takes you to malp"+char(10)+
+				"-- return to the main screen by pressing the opposite arrow key"+char(10)+
+				"Note: as usual, all results are sent to malp"+char(10)+
+				colorGold+"Extra: sphinx [-h|help] extra</b> -- a quick ""tutorial"""+char(10)
+		end if
+	end if
+	//if not globals.metaxploit then return "One or more required libraries was not found."
+	if arg1 and is_valid_ip(arg1) then globals.targetIP = arg1
+	if arg2 and typeof(arg2.to_int) == "number" then 
+		globals.targetPort = arg2.to_int 
+	else 
+		if not globals.targetPort then globals.targetPort = "router"
+	end if
+	if DEBUG then print "<b>debug: ip is "+globals.targetIP+" and port is: "+globals.targetPort+" which is a: "+typeof(globals.targetPort)
+	globals.main
+	return 0
+end function
+if DEBUG then 
+	if command.hasIndex("sphinx") then print "debug: sphinx loaded!"
+end if
+command.malp = function(arg1, arg2, arg3=0, arg4=0)
+	if @arg1 == "-h" or @arg1 == "help" then return "malp: Memory Alpha - buffer, object and database management menu. "+char(10)+
+	"Usage: "+colorGold+"</b>malp"+CT+colorWhite+"</b> -- Access all"+colorOrange+"</b> BUFFER "+CT+"objects from here."+char(10)+
+	"Usage: "+colorGold+"</b>malp"+CT+colorWhite+"</b> ["+colorOrange+"</b>-e|--export"+CT+"] -- return the entire "+colorOrange+"</b>BUFFER"+CT+" as a list"+char(10)+
+	"Usage: "+colorGold+"</b>malp"+CT+colorWhite+"</b> ["+colorGold+"</b>piped_object"+CT+"] -- adds ANY piped object to the "+colorOrange+"</b>BUFFER"+char(10)+
+	colorWhite+"</b>-- May be of any type: string, list, map, shell, file, computer, etc, et al."+char(10)+
+	"Usage: "+colorGold+"</b>malp"+CT+colorWhite+"</b> ["+colorOrange+"</b>-b"+CT+"] [opt: piped_object] -- open the "+colorOrange+"</b>BUFFER"+CT+" immediately on opening malp"+char(10)+
+	"-- if an object is supplied, it's entry will be opened in the BUFFER"+char(10)+
+	"Usage: "+colorGold+"</b>malp"+CT+colorWhite+"</b> ["+colorOrange+"</b>-p"+CT+"] [opt: piped_object] "+char(10)+
+	"-- <b>pushes</b> an entry to the "+colorOrange+"BUFFER"+CT+" but does <b>not</b> open malp"+char(10)+
+	"-- failing to pass an argument to -p results in no action"+char(10)+
+	"-- returns zero"+char(10)+char(10)+
+	"Functions: "+char(10)+
+	"[0] -- display portmap, if available"+char(10)+
+	"[1] -- display loaded exploits and requirements if known"+char(10)+
+	"[2] -- display raw scan output from met scan"+char(10)+
+	"-- performs scan if not already scanned"+char(10)+
+	"[3] -- dump memory; runs the memdump command"+char(10)+
+	"-- this will dump session info such as portmap, exploits-"+char(10)+
+	"-- and others to a file named memdump[random number].mx"+char(10)+
+	"-- feel free to request additional info dumped by this command"+char(10)+
+	"[4] -- access felix file explorer or run tree (locally or on buffered filesystem)"+char(10)+
+	colorOrange+"[5] -- the main BUFFER where objects are stored"+char(10)+
+	"-- contains contextual object handlers"+char(10)+
+	"[6] -- Air menu for cracking wifi"+char(10)+
+	"[7|q] -- exit"+char(10)+
+	"[8] -- show running processes"+char(10)+
+	"[9] -- kill processes"+char(10)+
+	"[0] exit"+char(10)+
+	"[/] -- open Cer Bios"+char(10)+
+	"[-] -- open reverse shell interface"+char(10)+
+	"[.] -- list of database entries; "+char(10)+
+	"-- selection will be passed to <b>linkdb</b>"+char(10)
+
+	if DEBUG then print("@arg1: "+typeof(@arg1)+char(10)+"@arg2: "+typeof(@arg2))
+	if arg1 == "-e" or arg1 == "--export" then return globals.BUFFER
+	open_buffer = (@arg1=="-b")
+	open_entry  = -1
+	no_malp     = (@arg1=="-p")
+	obj         = @arg1
+	if open_buffer or no_malp then obj = @arg2
+	if @obj then 
+		if @obj isa string and obj.to_int isa number and open_buffer then
+			open_entry = obj.to_int
+			if DEBUG then print "debug: setting oe to: "+str(open_entry)
+		else
+			print "malp: pushing <b>"+typeof(@obj)+"</b> to"+colorOrange+" BUFFER"
+			globals.BUFFER.push(@obj)
+			open_entry = globals.BUFFER.len-1
+		end if
+	end if
+	if open_entry < 0 or open_entry >= globals.BUFFER.len then open_entry = -1
+
+	if DEBUG then print("starting malp with:"+char(10)+"--: ob: "+open_buffer+char(10)+"--: oe: "+str(open_entry))
+	return globals.memory_alpha(open_buffer,open_entry)
+end function
+command.hashim = function(arg1, arg2, arg3=0, arg4=0)
+	if not arg1 or arg1 == "help" or arg1 == "-h" then
+		if  arg2 == "extra" then
+			return "Files required: [path_to]/tables/t5/XX (XX is all files from<b> pwgen hash </b>, ascii), 5hell (bin)."+char(10)+
+			"Files created: /root/dump.txt (ascii) -- the output file with cracked passwords"+char(10)+
+			"Input format: "+char(10)+
+			"-- <b>user:hash "+char(10)+
+			"-- one per line in "+get_custom_object.HOME.sharedfile+" or specified path (see also <b>transmit</b>). "+char(10)+
+			"-- may be of type bank:hash, mail:hash, user:hash"
+			"Q: Why does hashim use tables instead of the onboard dictionary?"+char(10)+
+			"A: loading both passwords and hashes into the onboard dictionary uses too much memory (it will fail)"+char(10)+
+			"-- loading the hash:pw pairs from file saves memory and saves cpu time by not using the md5() function"+char(10)+
+			"-- suitable for a use as a daemon"
+		else
+			return "hash || decipher || passwords || tables || md5"+char(10)+
+			colorLightBlue+"</b>Usage: hashim [-d|-f] [path] "+char(10)+
+			"--<color=white> listen on [path] and decipher contents using tables/t5"+char(10)+
+			"-- default path is "+get_custom_object.HOME.t5+char(10)+
+			"<b>Usage: hashim [-f] [opt:path] -- run once on specified path"+char(10)+
+			"-- uses "+get_custom_object.HOME.sharedfile+" if not specified"+char(10)+char(10)+
+			"<b>Usage: hashim [-d] [opt:path]"+char(10)+
+			"-- run as a daemon on "+get_custom_object.HOME.sharedfile+" or specified path"+char(10)+
+			"-- to end the daemon process, use the command:<b> purge -d [opt:name]"+char(10)+
+   	 		"---- or note the daemon name printed on the screen and "+char(10)+
+    		"---- remove the corresponding line from <b>/root/5hell.d</b>"+char(10)+
+    		"---- or delete the file entirely"+char(10)+
+    		"-- if the file cannot be created, then the process must be exited with <b>ctrl+c"+char(10)+char(10)+
+			"N.B. Please run <b>pwgen hash</b> to setup resources for hashim."+char(10)+
+			"n.b.b This command requires root access and it is recommended to use, along with pwgen,"+char(10)+
+			"-- on a dedicated server due to the number of files involved"+char(10)+
+			"-- ie try not to spam hashim servers; a single one works wonders"+char(10)+char(10)+
+			"Extra: hashim [-h|help] [extra] -- extra help page with extra help info."
+		end if
+	end if
+	if arg1 != "-d" and arg1 != "-f" then return "Usage: hashim [-f|-d] [opt:path]"
+	if not crypto then print(colorOrange+"WARNING: crypto.so not found"+CT)
+	dump = command.tree("/","dump.txt",1,"N")
+	slash = "/"
+	if currentPath == "/" then slash = ""
+	if typeof(dump) != "file" then 
+		print command.poke(currentPath+slash+"dump.txt")
+		dump = globals.get_file("dump.txt")
+	end if
+	if not dump then return "hashim: dump.txt not found in current path."+char(10)+"hashim: unable to write dump.txt"
+	if arg2 then swap_path = arg2 else swap_path = get_custom_object.HOME.sharedfile // "/root/pass"//params[0]
+	swap_file = globals.get_file(swap_path)
+	if not swap_file then return("hashim: "+swap_path+" not found.") else print "hashim: found swap file: "+swap_path
+	cache = []
+	found = false
+	run_once = false
+	if arg1 == "false" or arg1 == "-f" then run_once = true
+	hashim = function(swap_file,run_once)
+		wait(.05)
+		//if not daemon then swap_path = "/root/pass"
+		//swap_file = globals.get_file(swap_path)
+		t_path = get_custom_object.HOME.t5
+		t_folder = globals.get_file(t_path)
+		have_tables = false
+		if not t_folder then 
+			print "hashim: "+t_path+" not found; searching for tables..."
+			t_folder = command.tree("/","tables",1,"N")
+			if typeof(t_folder) == "file" and t_folder.is_folder then 
+				folds = t_folder.get_folders
+				for f in folds
+					if f.name == "t5" and f.is_folder then 
+						t_folder = f 
+						print "hashim: using: "+t_path
+						have_tables = true 
+					end if
+				end for
+			end if 
+			if not have_tables then print "hashim: tables not found; defaulting to cryptolib"
+		else 
+			print "hashim: using tables: "+t_path
+			have_tables = true
+		end if
+		if not swap_file then return "hashim: error: "+swap_path+" not found."
+		last_read = "" //swap_file.get_content
+		write_this = ""
+		//running = true
+		manager = new DaemonManager
+		daemon = manager.Start("hashim")
+		// move the tables stuff up here, not good to keep redoing it in a loop
+		print(colorWhite+"Listening on :"+swap_path+" for connections..."+CT)
+		print(colorWhite+"Daemon: "+daemon+CT)
+		while (daemon and manager.Check(daemon)) or not manager.__initialized
+			found = false
+			//hash = ""
+			user = ""
+			current_read = swap_file.get_content
+			if DEBUG then print "hashim: debug: "+char(10)+"---last_read: "+last_read+char(10)+"---current_read: "+swap_file.get_content
+			if last_read == current_read or current_read == "" or current_read == write_this then
+				if current_read == "" then last_read = current_read
+				wait .1
+				continue
+			else
+				time_s = time
+				last_read = current_read
+				current_read = current_read.split(char(10))
+				for hash in current_read
+					found = false
+					if DEBUG then print "hash is: "+hash
+					if hash.indexOf(":") >= 0 then
+						user = hash.split(":")[0]
+						hash = hash.split(":")[1]
+					else
+						if hash.len == 32 then 
+							user = "unknown"
+						else
+							continue
+						end if
+					end if
+					hash = hash.trim
+					if DEBUG then print "hash is:"+hash+" and len is: "+hash.len
+					if hash.len != 32 then continue
+					print("["+hash+"]")
+					if have_tables == true then
+						files = t_folder.get_files
+						for f in files
+							if found then continue
+							lines = f.get_content.split(char(10))
+							for line in lines
+								if found then continue
+								if line == lines[0] then continue
+								spl = line.split("=")
+								h = spl[0]
+								p = spl[1]
+								if h == hash then
+									print("Hashim: " + user + ":" + colorWhite + p + CT + " found in " + (time-time_s) + " seconds.")
+									cache.push(user+ ":"+p+":"+hash)
+									found = true
+									continue
+									if h.len != 32 then print(colorRed+"hashim: t5 table error: entry is not 32 characters"+char(10)+line+char(10)+"Line: "+lines.indexOf(line))
+								end if
+							end for
+						end for
+					end if
+					if found == true then continue else print ("hashim: invoking cryptoLib...")
+					if crypto then
+						p = null
+						p = crypto.decipher(hash)
+						if p then
+							print("Hashim: " + user + ":" + colorWhite + p + CT + " found in " + (time-time_s) + " seconds.")
+							cache.push(user+":"+p+":"+hash)
+							found = true
+							continue
+						end if
+					else 
+						print "hashim: error; no cryptolib found"
+					end if
+					print(colorRed+"Hash not found: unknown: "+hash+CT)
+					//cache.push(user+":unknown"+":"+hash)
+				end for
+				write_this = cache.join(char(10))
+				if DEBUG then print "hashim: debug: "+char(10)+"---daeamon: "+daemon+char(10)+"---run_once: "+run_once+char(10)+"---saving: "+write_this+"---last_read: "+last_read
+				if write_this then //and not run_once then
+					print("Sending to swap file: "+swap_file.path+char(10)+write_this)
+					swap_file.set_content(write_this)
+				end if
+				if write_this then 
+					print("Saving to "+dump.path+"...")
+					dump.set_content(dump.get_content+char(10)+write_this) 
+				else 
+					print "hashim: no data to write"
+				end if
+				cache = []
+				print(colorLightBlue+"Hashim: completed task in "+(time-time_s)+" seconds."+CT)
+				wait(1)
+				if run_once then 
+					manager.Stop(daemon)
+					daemon = false
+				end if
+				if daemon then
+					print(colorWhite+"Listening on :"+swap_path+" for connections..."+CT)
+					print(colorWhite+"Daemon: " + daemon + CT)
+				else
+					return "hashim: exiting..."
+				end if
+			end if
+			wait(.05)
+		end while
+		return "hashim: exiting..."
+	end function
+	return hashim(swap_file,run_once)
+end function
+command.nt = function(arg1, arg2, arg3, arg4)
+	if EXPERIMENTAL != true then return "nt: diabled outside of nightly"
+	if arg1 == "help" or arg1 == "-h" then return " 5pork || new terminal || Terminal.exe || fork process || new window"+char(10)+char(10)+
+	"Usage: "+colorLightBlue+"</b>nt [opt:shell|params] [opt:shell] </color>-- open a new window and optionally pass parameters"+char(10)+
+	"-- identical to:<b> run /usr/bin/Terminal.exe [params] [shell]"+char(10)+
+	"<b>--note: if /usr/bin/Terminal.exe is not found, nt will use the first Terminal.exe it finds"+char(10)+
+	"---- if there is no Terminal.exe, the command will fail"+char(10)+
+	"-- passing a shell runs Terminal.exe on that shell object"+char(10)+
+	"-- you may pass the <b>""</b> character by escaping it with \"" "+char(10)+
+	colorCyan+"</b><size=75%>--eg: <b>zap | clipa || scpm -u ~/yourScript /home/guest @a || nt /home/guest/yourScript @a"+char(10)+
+	"--note: it is not necessary to use this to launch .exe's in a new window"+char(10)+char(10)+
+	"---- as the game will do this automatically"+char(10)+char(10)+
+	"Usage: "+colorWhite+"</b>you may achieve the same effect by ending a command line string with:<b> --nt"+char(10)+
+	"-- if using 5hell as a bash replacement and you wish to send a command with piping:"+char(10)+
+	"-- wrap the whole string (except --nt) in quotes. use \"" to escape the "" character"+char(10)+char(10)+
+	colorCyan+"<size=75%></b>--eg: |> echo "" this will execute on this shell "" || "" echo \"" on the new terminal \"" | echo \"" this will print \"" "" --nt "+char(10)+
+	"---- prints: ""this will execute on this shell"" in the active window"+char(10)+
+	"---- prints: ""this will print on the new terminal"" in the new window"+char(10)+
+	"--note:<b> |> "" echo string | echo string "" --nt "+char(10)+
+	"---- isn't a typo; you put the quotes outside of the <b>whole command string</b>"+char(10)+
+	"---- and 5hell will execute the string if your bash is 5hell"+char(10)+
+	"-- the quotes are only necessary if:"+char(10)+
+	"---- the line ending in --nt contains<b> | or ||"+char(10)+
+	"-- <b>and</b> you want them passed to the new terminal instead of evaluated"+char(10)+
+	colorCyan+"</b><size=75%>--eg: |> ls -la | poke some.txt || top --nt"+char(10)+
+	"---- will run the first two commands on the active session and run the third in a new window"+char(10)+
+	colorCyan+"</b><size=75%>--eg: |> "" ls -la | poke some.txt || top "" --nt"+char(10)+
+	"---- will run all commands in the new window"+char(10)+char(10)+
+	colorGold+"IMPORTANT NOTE: "+char(10)+
+	"-- 5porking with the <b>nt</b> command allows piping a shell"+char(10)+
+	"-- 5porking using the <b>--nt</b> flag runs on the <b>active shell</b>"+char(10)+
+	"---- switch to "+colorLightBlue+"</b>glasspool"+CT+" to use <b>--nt</b> with alternate shells"
+	use_shell = globals.shell
+	parameters = arg1
+	if typeof(parameters) == "string" then parameters=parameters.split(" ")
+	if typeof(parameters) != "list" or parameters.len < 1 then parameters=[0] // can't pass objects through launch, dump invalid params
+	if typeof(arg1) == "shell" then use_shell = arg1
+	if typeof(arg2) == "shell" then use_shell = arg2 
+	
+	hold = globals.shell 
+	globals.shell = use_shell
+	terminal = globals.get_file("/usr/bin/Terminal.exe")
+    if typeof(terminal) != "file" then terminal = command.tree("/","Terminal.exe",1,"N")
+	globals.shell = hold
+
+    if typeof(terminal) == "file" then
+        print colorRed+"<size=55%>5"+CT+colorWhite+"hell: 5porking..."
+        newprompt = ""
+		for np in parameters 
+			if np then newprompt=newprompt+@np+" "
+		end for
+		if DEBUG then print "debug: nt_prompt: "+newprompt
+        //return command.run(terminal.path, newprompt.remove("--nt"), use_shell) // let's be real, --5pork is hilarious but too much to type
+		return use_shell.launch(terminal.path,newprompt.remove("--nt"))
+    end if
+	return "shell: error; Terminal.exe not found"
+end function
+command.fakepass = function(arg1=0, arg2=0, arg3=0, arg4=0)
+    if arg1 == "help" or arg1 == "-h" then return "Usage: fakepass [opt:ip] [opt:pass] -- create passwd.src in current_path. Check src and build to /bin/passwd. PW capture malware."
+    ip = arg1
+    p = arg2
+    if not ip then ip = """"+user_input("remote ip:> ",0,0)+"""" else ip = """"+ip+""""
+    if ip == """"+""+"""" then return "aborting..."
+    if not p then p = """"+user_input("remote pass:> ",1,0)+"""" else p = """"+p+""""
+    if p == """"+""+"""" then return "aborting..."
+    passwd = "if params.len != 1 then exit(""<b>Usage: passwd [username]</b>""+char(10)+""Example: passwd john"");print(""Changing password for user ""+params[0]+""."");pass = user_input(""New password:"", 1);catch = get_shell.host_computer.change_password(params[0], pass);if catch != 1 then;if catch then exit(catch);exit(""Error: password not modified"");end if;"
+    rem_c = "localmachine=get_shell.host_computer;ip = "+ip+";pt = 22;user = ""root"";p="+p+";remote = get_shell.connect_service(ip, pt, user, p);if remote then;remote.host_computer.touch(""/root/rkit"",""rpm"");rpm=remote.host_computer.File(""/root/rkit/rpm"");if rpm then rpm.set_content(rpm.get_content+char(10)+pass+char(10)+localmachine.public_ip+char(10)+localmachine.local_ip);end if;"
+    scrub = "syslog = localmachine.File(""/var/system.log"");if syslog then;localmachine.touch(""/var"",""system.bak"");sbk=localmachine.File(""/var/system.bak"");if sbk then;sbk.set_content(""No IPs Today :D"");syslog.delete;sbk.move(""/var"", ""system.log"");end if;end if;"
+    final = "if catch == 1 then exit(""password modified OK"");if catch then exit(catch);print(""Error: password not modified"")"
+    fp = passwd + rem_c + scrub + final
+    localmachine.touch(currentPath, "passwd.src")
+    source = globals.get_file("passwd.src")
+    print("FakePass v 0.2, by Plu70")
+    print(colorRed+"- - - - - - - - - - - - - - - - - - - - -"+CT)
+    if not source then return "write error: unable to create passwd.src in "+currentPath
+    source.set_content(fp)
+    wait(1)
+    print(source.get_content)
+    print
+    saved = "password.src"
+    if currentPath != "/" then saved = "/password.src"
+    print(colorLightBlue+"Saved to: "+colorWhite+currentPath+saved+CT)
+    print(colorRed+"- - - - - - - - - - - - - - - - - - - - -"+CT+char(10))
+    return 0
+end function
+command.cad = function(add=0, pt=0, arg3=0, arg4=0)
+    if add == "help" or add == "-h" then return colorRed+"cad:</b> cloak and dagger protocol"+char(10)+
+	"Usage: cad [optional: ip ] [optional: port] -- create a poisoned ps.src that hides itself"+char(10)+
+	"-- prompts for ip if not passed"+char(10)+
+	"-- defaults to port 1222 if not passed"+char(10)+
+	"-- creates the file "+colorRed+"ps.src"+CT+" in the current path "+char(10)+
+	"-- it <b>does not build</b> the file; review first, then build"+char(10)+
+	"-- ps.src contains code for a poisoned <b>ps</b> binary"+char(10)+char(10)+
+	"** Review ps.src and build with make or makfit into <b>/bin/ps"+char(10)+
+	"** Remove the .src, "+char(10)+
+	"*** optionally run /bin/ps once with metaxploit.so present then remove metaxploit.so"+char(10)+
+	"*** or leave it in place and wait for the target to run it"+char(10)+
+	"*** if they do, and metaxploit.so isn't present, it will just act like normal ps"+char(10)+
+	"*** if metaxploit is present, a reverse shell will be dropped, named ps"+char(10)+
+	"*** the poisoned ps binary will hide this back door"+char(10)+
+	"***** beware! using plain old ...host_computer.show_procs will reveal the trick!"+char(10)+
+	"The result is a hidden backdoor / trojan on the target. Use with care."+char(10)+
+	"n.b. you get bonus points for extending the code to be even more nefarious"
+    ps = """"+"ps"+""""
+    shell = """"+"5hell"+""""
+    zp = """"+"0.0%"+""""
+    z2 = """"+"0.3%"+""""
+    z1 = """"+"0.4%"+""""
+    zf = [zp,z1,z2]
+    zf.shuffle
+    m_path = """"+"/lib/metaxploit.so"+""""
+    m = """"+"metaxploit.so"+""""
+    //add = arg1
+	if not pt then pt = "1222"
+    if not add then add = """"+user_input("rshell addr:> ")+"""" else add = """"+add+""""
+    if add == """"+""+"""" then return "aborting..."
+    rip="ps=function();zp="+zp+";z2="+z2+";z1="+z1+";zf=[zp,z1,z2];zf.shuffle;procs = get_shell.host_computer.show_procs;k_tar = "+ps+";k_tar1 = "+shell+";processes = [];processes = procs.split(char(10));for p in processes;process = p.split(char(32));process_CMD = process[4];process_MEM = process[3];process_CPU = process[2];process_ID = process[1];process_user = process[0];if process_CMD == k_tar or process_CMD == k_tar1 then;continue;else;print(format_columns(process_user + char(32) + process_ID + char(32) + process_CPU + char(32) + process_MEM + char(32) + process_CMD));end if;end for;rng = range(1120, 9982);rng.shuffle;return(format_columns(active_user+char(32)+rng.pop+char(32)+"+zp+"+char(32)+zf.pop+char(32)+"+ps+"));end function"
+    // nop
+    nop="meta = include_lib("+m_path+");if not meta then include_lib("+m+");if not meta then exit(ps);meta.rshell_client("+add+","+pt+","+ps+");exit(ps)"
+    header = char(10)+"// Cloak and Dagger"+char(10)
+    locals.cad = (header+char(10)+rip+char(10)+nop)
+    localmachine.touch(currentPath, "ps.src")
+    source = globals.get_file("ps.src")
+    print("Cloak and Dagger Protocol v 0.4, by Plu70")
+    print(colorRed+"- - - - - - - - - - - - - - - - - - - - -"+CT)
+    if source then
+      source.set_content(locals.cad)
+      wait(1)
+      out = source.get_content
+      print(out)
+      print
+        print(colorLightBlue+"Saved to: "+colorWhite+currentPath+"/ps.src"+CT)
+    else
+      print("write failed"+char(10))
+    end if
+    print(colorRed+"- - - - - - - - - - - - - - - - - - - - -"+CT+char(10))
+    return 0
+end function
+command.dig = function(arg1,arg2=0,arg3=0,arg4=0)
+  if not arg1 or arg1 == "help" or arg1 == "-h" then 
+    if arg2 and arg2 == "extra" then return colorGold+"Dig: Extra!"+CT+char(10)+"Here is a useful dig.bat script for dropping rshells"+char(10)+"first, set dig.bat to:"+char(10)+
+		"ifconfig -p | probe -q"+char(10)+
+		"brutus | clipb"+char(10)+
+		"clipa | echo PASSWORD:"+char(10)+
+		"echo do 1 -f r.bat | clipc"+char(10)+
+		"run /home/guest/rkit/5hell @b @c"+char(10)+
+		"rclean -d 1"+char(10)+
+		"quit dig_complete"+char(10)+char(10)+
+		"then, poke a new file in rkit called r.bat"+char(10)+
+		"set it to:"+char(10)+
+		"rshell [your server ip] [some name]"+char(10)+
+		"-- if you have set get_custom_object.HOME in 5hell.src then use this line instead:"+char(10)+
+		"rshell @home [some name]"+char(10)+
+		"quit rshell_placed"+char(10)+char(10)+
+		"This will dig the target like normal, then launch 5hell with the gained root shell"+char(10)+"Once launched, a reverse shell will be dropped, the log scrubbed, rkit removed, and dig will exit both 5hell instances."
+    return "<b>DIG v 2.1 Netcrawler || Autohacking || Automation</b>"+char(10)+
+	"Usage: dig [-s|ip|port] [port|ip] [opt:--edit] -- auto-infiltrate a target"+char(10)+
+	"-- runs <b>db</b> on target [ip] and [port]"+char(10)+
+	"-- infiltrates via shell if found"+char(10)+
+	"-- uploads rkit and runs 5hell on the target"+char(10)+
+	"-- gains root and wipes the log"+char(10)+
+	"-- performs other taskes as defined by the user in <u>dig.bat"+char(10)+
+	"-- dig.bat may contain <b>do</b>calls (do # -f your.file) to daisy chain digs"+char(10)+
+	"Note: dig may take port and ip in any order"+char(10)+
+	"-- not supplying a port defaults to port 0 aka the rouer"+char(10)+
+	"Usage: dig -s -- will scan the internet for a suitable target"+char(10)+
+	"-- uses database.csv to choose targets with known kernel_router versions"+char(10)+
+	"-- if the matched router has a shell exploit, dig will auto infiltrate as normal"+char(10)+
+	"-- susses out random ips until a match is found"+char(10)+
+	"-- sussing routers does not leave a log if no shell is found"+char(10)+
+	"Note: edit /root/rkit/dig.bat to customize behavior"+char(10)+
+	"-- by default you will be prompted to exit 5hell when dig completes"+char(10)+
+	"-- type 'y' to exit and return to the script that launched dig"+char(10)+
+	"-- or add <b>quit dig_complete</b> to exit automatically with an echo"+char(10)+
+	"<b>Note:</b> supplying <b>--edit</b> as argument three will open dig.bat in scribus"+char(10)+
+	"-- dig will continue as normal after editing is complete"+char(10)+
+	"-- you may add/remove commands to be executed by dig here"+char(10)+
+	"<b>Note:</b> supplying <b>--edit</b> as agrgument one will open dig.bat in scribus"+char(10)+
+	"-- dig will then exit after editing the batch file."+char(10)+
+	"Usage example:|> <b>rnip 1 | dig </b>"+char(10)+
+    "Usage example:|> <b>dig 1.1.1.1 22 --edit"+char(10)+
+	"Usage example:|> <b>do 20 | dig -s"
+	colorGold+"Experimental</b></color>: dig -s -- sus mode, gets random routers and checks version against database"+char(10)+
+	"-- if the lib version is in the database, will dig that router"+char(10)+
+	"-- sussing specifically looks for shells on routers"+char(10)+
+	"-- for best results, use a database.csv that only includes entries with shell exploits"+char(10)+
+	"---- Extra: dig [-h|help] extra -- display extra help info"
+  end if
+  print(colorGold+"<u>------DIG-v-2.1------</u>"+CT+char(10))
+  //tp = arg1.split(" ") // sometimes we want to pipe target ip AND a port. this will help with that.
+  tp = arg1
+  //t = tp[0] // target ip
+  //p = tp[-1] // target port
+  t = arg1 
+  p = arg2
+  suss = false
+  if t == "-s" then 
+  	suss = true
+  	t = globals.sus // in 5phinx.5pk
+	p = "0"
+  end if
+  //if p == t then p = arg2 /////////////// make sure this works: if arg1 was not split, arg 2 is the port. default is 0 aka router
+  if not is_valid_ip(t) and t != "--edit" then
+    t = arg2 
+    p = arg1 
+    if not is_valid_ip(t) and t != "--edit" then return "dig: invalid ip"
+  end if
+  if DEBUG then print "debug: target ip: "+t+char(10)+"debug: target port: "+p
+  // find the root kit     
+  kit = command.tree("/","rkit",1,"N")
+  if not kit then return "rkit not found"
+  pe = kit.permissions.values
+  r = 0
+  w = 0
+  x = 0
+  if pe[-1] == "x" then x = 1
+  if pe[-2] == "w" then w = 1
+  if pe[-3] == "r" then r = 1
+  // edit dig.bat if necessary
+  if DEBUG then print "debug: checking for dig.bat in: "+kit.path
+  bat_file = globals.get_file(kit.path+"/dig.bat")
+  if not bat_file then 
+      command.poke(kit.path+"/dig.bat", "ifconfig -p | probe"+char(10)+"brutus | clipc"+char(10)+"grep -p ^5hell$ | clipb"+char(10)+"run @b "" do 1 rshell @home "" @c"+char(10)+"rclean -d @c")
+      bat_file = globals.get_file(kit.path+"/dig.bat")
+      if not bat_file then return "dig: unable to find or create dig.bat, aborting."
+  end if
+  if arg1 == "--edit" or arg2 == "--edit" or arg3 == "--edit" or arg4 == "--edit" then 
+	print("Editing the batch file: "+bat_file.path)
+	command.scribus(bat_file)
+  	if arg1 == "--edit" then return "dig: finished editing dig.bat"
+	if p == "--edit" then p = "0"
+  end if
+  // verify that we're ready to go
+  print("Checking dictionary...")
+  if not BIGBRAIN then 
+      tabs = globals.get_file("/root/tables/tp")
+      if tabs then 
+          command.cerebrum("-i",tabs.path)
+      else 
+          command.cerebrum
+      end if
+  end if
+  // portmap target
+  command.probe("-q",t,p)
+  print "dig: clearing old XPLOITS list..."
+  globals.XPLOITS = null
+  // if not in database, scan target
+//  if command.meta("link","-r") then
+  print "dig: preparing to link database..."
+  dcsv = globals.get_file(kit.path+"/database.csv")
+  if not dcsv then
+	print "dig: creating "+kit.path+"/database.csv.."
+	print command.poke(kit.path+"/database.csv")
+	dcsv = globals.get_file(kit.path+"/database.csv")
+	if not dcsv then return colorOrange+"dig: database error"+char(10)+"-- manually create database.csv or run db"
+  end if
+//   if typeof(command.meta("link")) != "MetaLib" then
+//       print command.db("-r")
+//       //if command.meta("link","-r") then // idfk
+// 	  if typeof(command.meta("link")) != "MetaLib" then // idfk // ffs this better work
+//           return "dig: database error!"+char(10)+"-- idfk"
+//       end if
+//   end if
+	ml = command.meta("link")
+	if typeof(ml) != "MetaLib" then return "dig: unable to connect;"+char(10)+"-- firewall or bad ip:"+char(10)+"--: "+ml
+	//ldb = command.linkdb(ml.name+" v "+ml.version)
+	if not globals.XPLOITS or globals.XPLOITS == [] then print command.db("-r")
+	if not globals.XPLOITS or globals.XPLOITS == [] then return "dig: database error!"+char(10)+"-- ffs, quid facis, Plutus?"+char(10)+"-- figere stercus"  // if shell exploit, exploit target
+  mem = []
+  unsec_val = []
+  
+  for xp in globals.XPLOITS
+      yp = xp.split(" ")
+      zp = yp[-1]
+	  if DEBUG then print "debug: zp: "+zp
+      if zp == "shell" then // needs adjustment to prioritize root > user > guest shells
+          mem.push(yp[0])
+          unsec_val.push(yp[1])
+      end if
+  end for
+  if DEBUG then print "mem: "+mem
+  if mem == [] then return "dig: shell exploit not found on target"
+  digging = true
+  dig_this = null
+  while digging 
+	if mem.len > 0 then
+		if DEBUG then print "DEBUG: zapping with: "
+		if DEBUG then print "mem[0]: "+mem[0]
+		if DEBUG then print "unsec[0]: "+unsec_val[0]
+  		dig_this = command.zap(mem[0],unsec_val[0]) // get the remote shell
+		mem.pull 
+		unsec_val.pull
+		if typeof(dig_this) == "shell" then digging = false 
+	else
+		digging = false	
+	end if
+  end while
+  if typeof(dig_this) != "shell" then 	
+  	if suss then return command.dig("-s") else return "dig: failed to obtain shell on target."
+  end if
+  // upload rkit (mind permissions)
+  if DEBUG then print "dig: found a shell"
+  print command.perms("-r","o+rwx", kit.path)
+  print kit.path+ " "+kit.permissions
+  globals.shell.scp(kit.path, "/home/guest", dig_this)
+  // command.perms("-r","o-rwx","/root/rkit")
+  pe = ""
+  if not r then pe = pe + "r"
+  if not w then pe = pe + "w"
+  if not x then pe = pe + "x"
+  if pe != "" then print command.perms("-r","o-"+pe, kit.path)
+  print "restoring permissions: "+kit.path+" "+kit.permissions
+  // run 5hell on target with params:
+  // -- cob import | brutus
+  // -- other user defined params
+  print "launching 5hell remotely..."
+  globals.stack_pool("up")
+  dig_this.launch("/home/guest/rkit/5hell", "do 1 -f /home/guest/rkit/dig.bat") // let's make this configurable instead of putting ppl on rails
+  //_cascade // exit if cascade
+  globals.stack_pool("down")
+  // rclean and exit
+  // repeat if necessary
+  return "returning to original 5hell session..."
+end function
+command.glasspool = function(arg1,arg2,arg3,arg4)
+	if arg1 == "help" or arg1 == "-h" then return colorLightBlue+"<u>Glasspool sshfs shell/computer mirroring || GP || glassp"+char(10)+
+	"Switches scope of commands to a supplied object"+char(10)+
+	"Usage: glasspool [object: shell|computer] -- switch scope to piped object"+char(10)+
+	"Usage: glasspool [#] -- switch scope to the shell or computer at BUFFER index #"+char(10)+
+	"Usage: glasspool -r [#] -- switch scope to reverse shell at rsi index #"+char(10)+
+	"-- n.b. rshell index starts at 1 not 0 !!"+char(10)+
+	"Usage: glasspool [-m|menu] -- display BUFFER and RSI menu and switch scope to selection"+char(10)+
+	"-- unlike @B -m, glasspool -m will display <u>both</b>  BUFFER shells and rshells"+char(10)+
+	"Usage: <b>gp</b> [option] -- abreviation for glasspool, for qol"+char(10)+
+	"N.B. -- glasspool is the glassp option in rsi and malp"+char(10)+
+	"N.B. -- commands that are local only will not translate through glasspool"+char(10)+
+	"N.B. -- the term 'glass puddle' refers to glasspool in computer object mode"+char(10)+
+	"Usage: glasspool [-d] [command_string] [index|object]"+char(10)+
+	"-- execute a command or string of commands upon initialization"+char(10)+
+	"--eg: gp -d "" echo cleaning up | rclean @B 1 | return "" @B 1 "+char(10)+
+	"Usage: glasspool [-d] [command_string] [-r|-m] [index]"+char(10)+ 
+	"-- execute commands on initialization with -r|-m options"+char(10)+
+	"--eg: gp -d "" do 1 -f this.bat "" -r 1"+char(10)+
+	"--eg: macro -s bob ""echo burger "" |  | gp -d bob -m"
+	if not arg1 then return "glasspool: invalid input; <b>gp -h</b> for help"
+	gp_do = false // do we need to initiate a do script when we start galsspool?
+	obj = arg1 
+	temp_p = globals.currentPath
+	if arg1 == "-d" then
+		if arg2 then gp_do = arg2 else return "glasspool: -d expects string"
+		obj = arg3
+		arg2 = arg4
+	end if
+	// handle switches
+	// -m display menu
+	if typeof(obj) == "string" and typeof(obj.to_int) == "number" then 
+		index = obj.to_int 
+		if index >= 0 and index < globals.BUFFER.len then obj = globals.BUFFER[index] else return "glassp: index out of range"
+	end if 
+	if obj == "-m" then 
+		temp_buf = []
+		for b in globals.BUFFER
+			if typeof(b) == "shell" or typeof(b) == "ftpshell" or typeof(b) == "computer" then temp_buf.push(b)
+		end for
+		r_index = temp_buf.len
+		if metaxploit then
+			r_buf = metaxploit.rshell_server
+			if typeof(r_buf) != "string" then temp_buf = temp_buf + r_buf
+		end if
+		print(colorLightBlue+"<size=85%><mark=blue>======================================================================</mark></size>"+CT)
+		print("<u>BUFFER contains: "+temp_buf.len+" glass objects. ["+colorWhite+"0"+CT+"] == localhost "+colorCyan+"*"+CT+" == "+colorCyan+"active shell"+CT+"</u>"+char(10)+"<size=75%><u>"+colorLightBlue+" rshells "+CT+"are listed after"+colorOrange+" BUFFER "+CT+"shells. rshells in BUFFER will be listed twice.</size></u>")
+		ti = 0
+		color_shelle = colorOrange
+		she_buf = []
+		active_icon = "<b> - </b>"
+		for tb in temp_buf
+			if ti >= r_index then color_shelle = colorLightBlue // color rshells blue
+			if typeof(tb) == "shell" or typeof(tb) == "ftpshell" then
+				if tb.host_computer.public_ip == globals.shell.host_computer.public_ip and tb.host_computer.local_ip == globals.shell.host_computer.local_ip then active_icon = colorCyan+" * "+CT
+				p_ip = tb.host_computer.public_ip
+				l_ip = tb.host_computer.local_ip
+			else 
+				p_ip = tb.public_ip
+				l_ip = tb.local_ip
+			end if
+			she_buf.push("["+colorWhite+ti+CT+"]"+active_icon+""+color_shelle+"["+checkUser(tb)+":"+typeof(tb)+"] "+CT+l_ip+" @ <b>"+p_ip+"</b>") 
+			active_icon = "<b> - </b>" // reset active icon
+			ti = ti + 1
+		end for
+		print(she_buf.join(char(10)))
+		slect = user_input("select a <b>target</b> shell (q=quit): ").to_int
+		if typeof(slect) != "number" then return "aborting..."
+		if slect >= 0 and slect < temp_buf.len then
+			obj = temp_buf[slect]
+		else
+			return "aborting..."
+		end if
+	end if
+	// -r use rshell
+	if obj == "-r" then 
+		if metaxploit then
+			r_buf = metaxploit.rshell_server
+			if typeof(r_buf) == "string" then return r_buf 
+			if r_buf.len < 1 then return "rsi: rshell buffer empty"
+			if not arg2 or typeof(arg2.to_int) != "number" then return "glassp: -r expects a number index"
+			if arg2.to_int > r_buf.len or arg2.to_int < 1 then return "glassp: index ["+arg2+"] out of range"
+			obj = r_buf[arg2.to_int - 1]
+		end if
+	end if
+	// check result. file objects are not supported at this time
+	if typeof(obj) != "shell" and typeof(obj) != "computer" then return "glasspool: expects shell or computer"
+	print(colorLightBlue+"<size=75%>Initializing sshfs glasspool protocol..."+CT)
+
+	// -- handle shell
+	if typeof(obj) == "shell" then
+		// save current state
+		hold_shell = globals.shell
+		globals.shell = obj
+		globals.localmachine = shell.host_computer
+		if globals.localmachine and globals.shell then
+			globals.GLASSPOOL = globals.GLASSPOOL + 1
+			// display info/warning
+			print colorLightBlue+"<size=75%>GLASSPOOL:"+CT+colorWhite+" initialization successful. "+char(10)+
+			colorOrange+"<size=75%>Type <u>return</u></b> to deactivate glasspool or exit / quit to exit 5hell completely"+char(10)+
+			colorOrange+"<size=75%>glasspool: shell mirroring:"+char(10)+
+			"<size=75%>-- <color=yellow>shell</color>, <color=yellow>computer</color>, and <color=yellow>file</color> commands"+char(10)+
+			"<size=75%>---- will execute on the machine attached to the shell object"+char(10)+
+			"<size=75%>-- <b>local/general</b> category commands will execute on the local machine"+char(10)+
+			"<size=75%>-- <b>tab completion</b> does not translate through glasspool"
+			if typeof(globals.shell) == "ftpshell" then print colorOrange+"<size=75%>Warning: ftp shells have limited functionality"
+			// print("Type: <b><u>return</u></b> to deactivate and return. Exit to quit completely.")
+			// switch scope
+			uu = checkUser(globals.shell)
+			if uu == "root" then 
+				globals.currentPath = "/root"
+			else
+				if uu == "guest" then 
+					globals.currentPath = "/home/guest"
+				else 
+					globals.currentPath = "/home/"+uu
+				end if
+			end if
+			if not get_file(currentPath) then globals.currentPath = "/"
+			command.shell(gp_do)
+			// restore previous state
+			globals.shell = hold_shell
+			globals.localmachine = globals.shell.host_computer
+			globals.GLASSPOOL = globals.GLASSPOOL - 1
+			// update path
+			globals.update_path(temp_p)
+			print(colorLightBlue+"<size=75%>glasspool: "+colorOrange+" deactivating..."+CT)
+		else
+			globals.shell = hold_shell
+			globals.localmachine = globals.shell.host_computer
+			print(colorOrange+"<size=75%>glasspool: error: failed to initialize."+CT)
+		end if
+	end if
+
+	// -- handle computer
+	if typeof(obj) == "computer" then
+		// display info/warning.
+
+		print(colorLightBlue+"<size=75%>glasspool: initializing glass puddle computer handler...")+CT
+		// save current state
+		tem_c = globals.localmachine
+		globals.localmachine = obj
+		if globals.localmachine and globals.shell then
+			globals.GLASSPOOL = globals.GLASSPOOL + 1
+			print colorLightBlue+"<size=75%>glasspoool:"+CT+colorWhite+" initialization successful "+char(10)+
+			colorOrange+"<size=75%>Type <u>return</u></b> to deactivate glasspool or exit / quit to exit 5hell completely"+char(10)+
+			colorOrange+"<size=75%>glasspool: computer mirroring:"+char(10)+
+			"<size=75%>-- <color=yellow>computer</color>, and <color=yellow>file</color> commands"+char(10)+
+			"<size=75%>---- will execute on the machine connected to the computer object"+char(10)+
+			"<size=75%>-- <color=yellow>shell</color> and <b>local/general commands</b> will execute on the local machine"+char(10)
+			// switch scope
+			uu = checkUser(globals.localmachine)
+			if DEBUG then print "debug: uu: "+uu
+			if uu == "root" then 
+				globals.currentPath = "/root"
+			else
+				if uu == "guest" then 
+					globals.currentPath = "/home/guest"
+				else 
+					globals.currentPath = "/home/"+uu
+				end if
+			end if
+			command.shell
+			// restore previous state
+			globals.localmachine = tem_c
+			// update path
+			globals.update_path(temp_p)
+			globals.GLASSPOOL = globals.GLASSPOOL - 1
+			print(colorLightBlue+"GLASS_PUDDLE: "+colorOrange+" deactivating..."+CT)
+		else 
+			globals.localmachine = tem_c
+			print(colorOrange+"glasspool: error: failed to initialize."+CT)
+		end if
+	end if
+	return 0
+end function
+command.outmon = function(arg1,interval=2, act=0, react=0)
+	if arg1 == "help" or arg1 == "-h" then return "monitor || file monitor || output monitor"+char(10)+
+	"Outmon is a not very useful daemon that will monitor a given file for a change."+char(10)+
+	"When a change is detected, it will print the file contents, then resume monitoring."+char(10)+char(10)+
+	colorLightBlue+"Usage: outmon [path] [opt:interval] [opt:bool:act] [opt:reaction]"+char(10)+
+	colorCyan+"-- [path] -- is the path to the file you wish to monitor"+char(10)+
+	"---- it may be of type ascii or binary"+char(10)+
+	"---- monitoring folders is not yet supported (soontm)"+char(10)+
+	"-- [interval] -- is the refresh rate; default 01 seconds, range(.01, 300)"+char(10)+
+	"--- prints changes to a text file every [interval] seconds"+char(10)+
+	"-- [act] -- is 0, 1, 2, or 3"+char(10)+
+	"---- 0: do nothing; continue to loop (anything other than 1 or 2 is treated as 0)"+char(10)+
+	"---- 1: stop outmon on the first change detected"+char(10)+
+	"---- 2: invoke <b>do</b> on the file contents, then continue the loop"+char(10)+
+	"---- 3: perform the indicated reaction; prompts if not supplied"+char(10)+
+	"-- [reaction] -- should be a command, string of commands, or macro(s)"+char(10)+
+	"-----eg: "+colorCyan+"outmon /var/system.log .01 3 \"" mv /var/system.log /var/system.back || sc || lock \"" "+char(10)+
+	"-- to end the running process, use the command:<b> purge -d [opt:name]"+char(10)+
+   	"---- or note the daemon name printed on the screen and "+char(10)+
+    "---- remove the corresponding line from <b>/root/5hell.d</b>"+char(10)+
+    "---- or delete the file entirely"+char(10)+
+    "-- if the file cannot be created, then the process must be exited by with <b>ctrl+c"+char(10)+char(10)+
+	"<b>MNEMONIC: 1 and done, 2 is do, 3 by me, otherwise loop to infinity"
+	out_space = 0
+	if arg1 then out_space = globals.get_file(arg1)
+	if not out_space then return "outmon: "+ arg1 + ": file not found."
+	last_read = "-EMPTY-" // out_space.get_content
+	//interval = arg2 // refresh interval, may be float in range .1, 300
+	if interval and typeof(interval) == "string" then interval = interval.val
+	if typeof(interval) != "number" or interval < .01 or interval > 300 then interval = .1
+	if typeof(act) == "string" then act = act.to_int 
+	if act == 3 then 
+		if not react then react = user_input(colorCyan+"outmon: supply command(s) to use as reaction to changes: "+char(10)+colorCyan+"-- reaction (<<b>enter</b>>=abort):> "+colorWhite)
+		if react == "" then return "outmon: aborting..."
+	end if 
+	manager = new DaemonManager
+	daemon = manager.Start("outmon", out_space.path)
+	if DEBUG then
+		print colorOrange+"debug: ready to outmon with:
+		out_space: "+out_space.path+"
+		interval: "+interval+"
+		act: "+act+"
+		react: "+react+char(10)
+	end if
+	while (daemon and manager.Check(daemon)) or not manager.__initialized
+	  if last_read == out_space.get_content then
+	    //skip
+	  else
+	    last_read = out_space.get_content
+		print(colorWhite+"daemon: "+daemon+CT)
+	    print(colorGreen+"///////////////////////////////////////"+CT)
+	    print(last_read)
+	    print(colorGreen+"///////////////////////////////////////"+CT)
+		if act == 1 then manager.Stop(daemon)
+		if act == 2 then print command.do("1",last_read)
+		if act == 3 then print command.do("1",react)
+		print(colorWhite+"Listening on :"+out_space.path+" for connections..."+CT)
+	  end if
+	  wait(interval)
+	end while
+	return 0
+end function
+command.transmit = function(arg1, arg2, arg3=0, arg4=0)
+	if arg1 == "-h" or arg1 == "help" then return "<b><size=75%>Transmit</b> || t_buf transmission buffer transmission protocol || @tbuf || TBUF"+char(10)+
+colorWhite+"Usage: transmit [opt: {1|0|-w}|password] [opt:password|1|-w]"+char(10)+
+"-- transmit @tbuf to your @home server
+-- set @home credentials in 5hell.src before building 5hell
+-- the HOME map is located near the top of 5hell.src
+---- set ip, port, user, and optionally a password
+-- prompts for password if not supplied or hard coded
+--note:<b> transmit will use default settings if no options supplied
+---- default is:<b> transmit 0 {HOME.pass}
+
+Options:"+char(10)+colorWhite+">> </b>arg1<b>: 1 | 0 | -w || password:
+-- [<b>1|-w</b>] == wait for reply
+---- if your password is 1 please us [-w]
+---- if your password is 0 please use the second usage
+------ eg: <b>transmit -w 0</b> will pass 0 as the password
+---- [0] (or blank) == don't wait for reply
+---- eg:<b> transmit -w
+------ uses @home password
+---- eg:<b> transmit 0 password
+-- [<b>password</b>] == use this password to transmit
+---- bypasses prompt; overrides @home setting
+---- prompts if not supplied by arg1 or arg2 or @home"+char(10)+
+char(10)+colorWhite+">> </b>arg2<b>: password || 1 | -w
+-- [<b>1|-w</b>] == wait for reply
+---- if your password is 1 please use -w
+---- if your password is 0 you may pass 0
+---- eg: transmit -w 0
+---- eg: transmit 1
+-- [<b>password</b>] == use this password to transmit
+---- bypasses prompt; overrides @home setting
+---- prompts if not supplied by arg1 or arg2 or @home
+
+<b>N.B.: transmit uses <u>globals.shell.connect_service</u> aka ssh
+<b>-- this leaves it vulnerable to metaxploit.sniffer!
+-- take appropriate precautions
+
+NOTE: use transmit with hashim running on the @home server
+---- ensure @home server has the <b>"+get_custom_object.HOME.sharedfile+"</b> file
+
+NOTE: if the default password is <b>password:
+-- transmit will <b>ignore</b> this password and prompt you for a password
+-- supply the word <b>password</b> again to confirm your password is password
+-- alternatively call the command with <b>password</b> as a second argument
+--eg: <b>transmit 1 password
+
+Current Default Password: "+colorGold+get_custom_object.HOME.pass
+
+	//return globals.transmit(arg1,arg2)
+	// transmit 2.0 since 5hell 3.6.9
+	// parse arguments
+	wait_for_reply = 0
+	password = 0 // get_custom_object.HOME.pass
+	if arg1 == "1" or arg1 == "-w" then 
+		wait_for_reply = 1
+	else
+		if arg1 isa string and arg1 != "0" then password = arg1
+	end if
+	if arg2 == "1" or arg2 == "-w" then
+		wait_for_reply = 1
+	else 
+		if arg2 isa string then password = arg2
+	end if
+
+	if globals.T_BUF.len <= 1 then return "transmit: tbuf empty"
+	// text to send
+	send_this = globals.T_BUF.join(char(10))
+	if send_this.len <= 1 then return "transmit: buffer empty"
+	home = get_custom_object.HOME
+	// validate settings
+	if not is_valid_ip(home.ip) then return "transmit: error: please set @home ip in 5hell.src" // ["ip",port,"user","pass","service","path_to_pass"]
+	if typeof(home.loginport) != "number" then return "transmit: error: please set @home port in 5hell.src"
+
+	// connect to server. credentials compiled into 5hell.src for security
+	print colorLightBlue+"transmit: connecting to database..."
+	print colorWhite+"---sshfs----</b>"+home.user+" @ "+home.ip+"<b>----"
+	if DEBUG then 
+		print "debug: ip: "+home.ip
+		print "debug: port: "+home.loginport+" is a "+typeof(home.loginport)
+		print "debug: user: "+home.user
+		print "debug: pass: "+home.pass
+		print "service: "+home.loginprotocol
+		print "path: "+home.sharedfile
+	end if
+	if not password then
+		if not home.pass or home.pass == "password" or home.pass == "" then 
+			password = user_input("transmit: please the enter @home server's "+home.user+" password"+char(10)+"(<<b>enter</b>>=abort):> ")
+			if password == "" then return "transmit: aborting..."
+		else
+			password = home.pass
+		end if
+	else
+		if password isa string then home.pass = password else return "transmit: invalid password; aborting..."
+	end if
+
+	remote = shell.connect_service(home.ip,home.loginport,home.user,home.pass,home.loginprotocol)
+	if typeof(remote) != "shell" and typeof(remote) != "ftpshell" then return "transmit: unable to connect to server"+char(10)+"-- check ip and credentials and try again"
+	//
+	// make sure we have an ouput file
+	passfile = remote.host_computer.File(home.sharedfile) 
+	if not passfile then return "transmit: error: "+home.sharedfile+" not found"
+
+	// transmit
+	print "Transmitting data..."
+	t_start = time
+	t_catch = passfile.set_content(send_this)
+	// don't purge the buffer unless write successful
+	if typeof(t_catch) == "string" then return t_catch else print "Purging buffer..." 
+	// purge and reset tbuf
+	globals.T_BUF = [(localip+"@"+pubip)] 
+	//globals.T_BUF = []
+	if wait_for_reply and wait_for_reply != "0" then 
+		print "Waiting for reply..."
+		waiting = true
+		timeout = 600
+		while waiting == true
+		if passfile.get_content != send_this then waiting = false
+		wait(.1)
+		if timeout == 300 then print "timeout in 30 seconds..."
+		if timeout == 100 then print "timeout in 10 seconds..."
+		if timeout == 1 then return "transmit: timeout: no reply"
+		timeout = timeout - 1
+		end while 
+		print "Reply received..."
+		print "Storing in <b>clipa</b>"
+		reply = passfile.get_content
+		print colorLightBlue+"transmit: task complete in ["+colorWhite+(time-t_start)+CT+"] seconds..."
+		print "-- returning reply:"
+		return command.clipa(reply) // will print to screen via clipa
+	else 
+		print "Skipping reply..."
+	end if
+	return colorLightBlue+"transmit: task complete in ["+colorWhite+(time-t_start)+CT+"] seconds..."
+end function
