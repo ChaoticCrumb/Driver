@@ -112,3 +112,4 @@ Driver presents an interactive menu listing available tools (**5hell** and **HEX
 - If a tool is already installed, Driver will prompt for confirmation before reinstalling.
 - The `src/hex/` installers must be built and run sequentially — Driver handles this automatically.
 - The `src/hex/src/` folder contains the actual hex source code if you would like to modify the env_vars before installing. you can either build it straight into Grey Hack or replace the installers and import Driver as instructed.
+- 5hell can be configured prior to importing. modify the top portion of 5hell.src to adjust HOME and security settings.
