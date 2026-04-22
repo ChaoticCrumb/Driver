@@ -164,6 +164,7 @@ The installer also creates all directories the tools expect before first run:
 | `/root/Config/`      | 5hell       |
 | `/root/SecureLibs/`  | HEX         |
 | `/root/InsecureLibs/`| HEX         |
+
 `Note: you will need to populate the lib folders accordingly...`
 
 If a tool is already installed, Driver will prompt for confirmation before reinstalling.
@@ -222,7 +223,7 @@ Setting `target <ip> <port>` in Driver seeds the target into both tools automati
 ## Notes
 
 - The `Driver2.0/` source tree must remain at `/root/Driver2.0/` while Driver is running. Do not move it after importing.
-- `driver.src` has a `DEBUG` flag at the top — set it to `false` before building for a cleaner REPL output.
+- `driver.src` has a `DEBUG` flag at the top — set it to `true` before building for a more robust REPL output.
 - 5hell can be configured before importing: edit the top of `Driver2.0/src/5hell/5hell.src` to adjust `HOME`, security settings, and color palette.
 - The `Driver2.0/src/hex/src/` folder contains the actual HEX source code. To modify HEX before installing, edit the source there, rebuild the HEX installers, and re-import Driver.
 - HEX-dispatched commands (`scan`, `hack`) require HEX to have been launched at least once in the current Grey Hack session so that `g.tools` is populated in `get_custom_object`.
