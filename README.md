@@ -168,7 +168,9 @@ The installer also creates all directories the tools expect before first run:
 `Note: you will need to populate the lib folders accordingly...`
 
 If a tool is already installed, Driver will prompt for confirmation before reinstalling.
-*Note: Because Driver comes loaded with the 5hell source code, it's possible to modify the .src files to customize the 5hell configuration. just reinstall after madking modifications...*
+
+`Note: Because Driver comes loaded with the 5hell source code, it's possible to modify the .src files to customize the 5hell configuration. just reinstall after madking modifications...`
+
 ---
 
 ## Driver REPL Commands
