@@ -10,7 +10,7 @@ SRC_5HELL      = DRIVER_PATH + "/src/5hell"
 SRC_HEX        = DRIVER_PATH + "/src/hex"
 TMP_PATH       = "/root"
 
-DEBUG = false   // set true to enable verbose debug output
+DEBUG = true   // set true to enable verbose debug output
 
 s = get_shell
 c = s.host_computer
@@ -47,7 +47,13 @@ while true
     driverDebug("cmd=[" + cmd + "]  args=" + str(args) + "  args.len=" + args.len)
 
     if cmd == "quit" or cmd == "exit" or cmd == "q" then exit
-
+    if cmd == "hex" then 
+        cmd = "launch"
+        args = ["hex"]
+    else if cmd == "5hell" then
+        cmd = "launch"
+        args = ["5hell"]
+    end if
     if command.hasIndex(cmd) then
         driverDebug("dispatching to command[" + cmd + "] with args=" + args)
         func = @command[cmd]

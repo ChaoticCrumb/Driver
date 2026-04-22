@@ -22,6 +22,7 @@ import_code("hex/functions.src")
 import_code("hex/nuke.src")
 import_code("hex/extensions.src")
 g.registerExtensions
+
 import_code("hex/banner.src")
 import_code("hex/prompt.src")
 import_code("hex/default-binaries.src")
@@ -55,7 +56,23 @@ g.func.init
 g.func.updateApt
 output = g.func.updateLibs
 g.func.loadLibs
-//g.func.loop_terminal
+
+// Inject any Driver-bridged shells staged in g.driver.pendingShells.
+// Must run AFTER g.func.init (which writes g.stack["0"]) and AFTER #include hex/tools.src
+// (which defines g.stack.add).  g.Target is stable across runs due to the hasIndex guard
+// added to constants.src, so all contexts created here share the same __isa pointer.
+if g.hasIndex("driver") and g.driver.hasIndex("pendingShells") then
+    for _sh in g.driver.pendingShells
+        if typeof(_sh) == "shell" then
+            _comp = _sh.host_computer
+            if typeof(_comp) == "computer" then
+                _ctx = _sh.createContext("5hell_bridge")
+                if _ctx != null then g.stack.add(_ctx)
+            end if
+        end if
+    end for
+    g.driver.remove("pendingShells")
+end if
 
 print(g.func.getBanner)
 print(output)

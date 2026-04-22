@@ -3,14 +3,13 @@
 // Imported before launch.cmd.drvr and hackcmds.cmd.drvr so its functions are available to both.
 //
 // 5hell state layout (root get_custom_object):
-//   g.mys0..N  — shell objects exported by _export_metax_et_al
-//   g.myx0..N  — MetaxploitLib per depth
-//   g.myc0..N  — cryptoLib per depth
-//   g.myi0..N  — "pubip : localip" string per depth
-//   g.stack_pool — current nested launch depth
+//   g.h5buffer  — globals.BUFFER written by command.quit; list of shell objects.
+//                 [0] is always get_shell (home); [1..n] are acquired remote shells.
+//                 Read by Driver on harvest; written by Driver on seed (then merged at 5hell init).
 //   g.macros   — macro map
 //   g.HOME     — @home server config
 //   g.h5.*     — 5hell command functions (namespaced by Driver)
+//   g.mys*/myx*/myc* — legacy per-depth exports (kept for compat; harvest falls back to these)
 //
 // HEX state layout (root get_custom_object):
 //   g.stack["0"]..["N"] — g.Target context objects
@@ -22,59 +21,158 @@
 // ---------------------------------------------------------------------------
 // driverHarvest5hell
 // Called after s.launch("/root/5hell") returns.
-// Reads shell exports from root g and writes them into g.driver.bridge.shells,
-// replacing any prior "5hell" entries (dedup by source rebuild).
+// Reads shell objects from g.h5buffer (written by command.quit in 5hell.5pk.src).
+// Skips index 0 (always home shell). Validates and writes into g.driver.bridge.shells,
+// replacing any prior "5hell" entries. Deduplicates by IP against existing entries
+// so HEX-originated shells seeded into 5hell's BUFFER don't get double-tagged.
+// Falls back to legacy mys* exports if g.h5buffer is not present (old 5hell build).
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// driverShellUser
+// Resolves the active username for a computer object by walking /
+// Returns "root", "guest", or the first writable home username found.
+// ---------------------------------------------------------------------------
+
+driverShellUser = function(comp)
+    rootFile = comp.File("/")
+    if rootFile == null then return "guest"
+    if rootFile.has_permission("w") then return "root"
+    for folder in rootFile.get_folders
+        if folder.name == "home" then
+            for userDir in folder.get_folders
+                if userDir.has_permission("w") and userDir.name != "guest" then
+                    return userDir.name
+                end if
+            end for
+        end if
+    end for
+    return "guest"
+end function
+
+// ---------------------------------------------------------------------------
+// driverSessionKey
+// Returns a dedup key string: "publicIP:localIP:user"
+// Used to detect duplicate sessions across 5hell and HEX harvests.
+// ---------------------------------------------------------------------------
+
+driverSessionKey = function(public_ip, local_ip, user)
+    return public_ip + ":" + local_ip + ":" + user
+end function
+
+// ---------------------------------------------------------------------------
+// driverHarvest5hell
+// Called after s.launch("/root/5hell") returns.
+// Reads shell objects from g.h5buffer (written by command.quit in 5hell.5pk.src).
+// Skips index 0 (always home shell). Validates and writes into g.driver.bridge.shells.
+// Deduplicates by publicIP:localIP:user against the full existing list so the same
+// session acquired under the same user is never stored twice regardless of source.
+// Falls back to legacy mys* exports if g.h5buffer is not present (old 5hell build).
 // ---------------------------------------------------------------------------
 
 driverHarvest5hell = function()
     driverDebug("driverHarvest5hell: start")
 
-    depth = 0
-    if g.hasIndex("stack_pool") and typeof(g.stack_pool) == "number" then
-        depth = g.stack_pool
-    end if
-    driverDebug("driverHarvest5hell: stack_pool=" + depth)
-
     newShells = []
-    i = 0
-    while i <= depth
-        sk = "mys" + i
-        xk = "myx" + i
-        ck = "myc" + i
-        ik = "myi" + i
 
-        if g.hasIndex(sk) and typeof(g[sk]) == "shell" then
-            sh = g[sk]
-            entry = {
-                "shell":  sh,
-                "metax":  null,
-                "crypto": null,
-                "source": "5hell",
-                "depth":  i,
-                "ip":     ""
-            }
-            if g.hasIndex(xk) then entry["metax"]  = g[xk]
-            if g.hasIndex(ck) then entry["crypto"] = g[ck]
-            if g.hasIndex(ik) and typeof(g[ik]) == "string" then entry["ip"] = g[ik]
-
-            // Validate the shell object is still reachable
-            comp = sh.host_computer
-            if typeof(comp) == "computer" then
-                newShells.push(entry)
-                driverDebug("driverHarvest5hell: captured depth=" + i + " ip=" + entry["ip"])
-            else
-                driverDebug("driverHarvest5hell: shell at depth=" + i + " is stale, skipping")
+    if g.hasIndex("h5buffer") and typeof(g.h5buffer) == "list" then
+        // Primary path: read from BUFFER written by command.quit
+        i = 1  // skip index 0 — always home shell
+        while i < g.h5buffer.len
+            obj = g.h5buffer[i]
+            if typeof(obj) == "shell" then
+                sh = obj
+                comp = sh.host_computer
+                if typeof(comp) == "computer" then
+                    user = driverShellUser(comp)
+                    entry = {
+                        "shell":     sh,
+                        "metax":     null,
+                        "crypto":    null,
+                        "source":    "5hell",
+                        "bufferIdx": i,
+                        "user":      user,
+                        "ip":        comp.public_ip + " · " + comp.local_ip
+                    }
+                    newShells.push(entry)
+                    driverDebug("driverHarvest5hell: captured buffer[" + i + "] ip=" + entry["ip"] + " user=" + user)
+                else
+                    driverDebug("driverHarvest5hell: stale shell at buffer[" + i + "], skip")
+                end if
             end if
+            i = i + 1
+        end while
+        g.remove("h5buffer")
+        driverDebug("driverHarvest5hell: cleared g.h5buffer")
+    else
+        // Fallback: mys* depth exports (old 5hell build without h5buffer support)
+        driverDebug("driverHarvest5hell: g.h5buffer not found, falling back to mys* exports")
+        depth = 0
+        if g.hasIndex("stack_pool") and typeof(g.stack_pool) == "number" then
+            depth = g.stack_pool
         end if
-        i = i + 1
-    end while
+        i = 0
+        while i <= depth
+            sk = "mys" + i
+            xk = "myx" + i
+            ck = "myc" + i
+            ik = "myi" + i
+            if g.hasIndex(sk) and typeof(g[sk]) == "shell" then
+                sh = g[sk]
+                entry = {
+                    "shell":  sh,
+                    "metax":  null,
+                    "crypto": null,
+                    "source": "5hell",
+                    "depth":  i,
+                    "user":   "",
+                    "ip":     ""
+                }
+                if g.hasIndex(xk) then entry["metax"]  = g[xk]
+                if g.hasIndex(ck) then entry["crypto"] = g[ck]
+                if g.hasIndex(ik) and typeof(g[ik]) == "string" then entry["ip"] = g[ik]
+                comp = sh.host_computer
+                if typeof(comp) == "computer" then
+                    entry["user"] = driverShellUser(comp)
+                    newShells.push(entry)
+                    driverDebug("driverHarvest5hell: captured mys" + i + " ip=" + entry["ip"] + " user=" + entry["user"])
+                else
+                    driverDebug("driverHarvest5hell: stale shell at mys" + i + ", skip")
+                end if
+            end if
+            i = i + 1
+        end while
+    end if
 
-    // Rebuild bridge.shells: keep non-5hell entries, replace 5hell slice
+    // Build dedup key set from the FULL existing list (all sources).
+    // A session is a duplicate if public + local + user all match — same host, same access level.
+    existingKeys = {}
+    for e in g.driver.bridge.shells
+        if not e.hasIndex("ip") or not e.hasIndex("user") then continue
+        parts = e["ip"].split(" · ")
+        if parts.len < 2 then parts = e["ip"].split(" : ")
+        if parts.len < 2 then continue
+        k = driverSessionKey(parts[0], parts[1], e["user"])
+        existingKeys[k] = 1
+    end for
+
+    // Rebuild: keep all non-5hell entries, append new 5hell entries that aren't duplicates.
     merged = []
     for e in g.driver.bridge.shells
         if e.hasIndex("source") and e["source"] != "5hell" then merged.push(e)
     end for
-    g.driver.bridge.shells = merged + newShells
+    for entry in newShells
+        parts = entry["ip"].split(" · ")
+        if parts.len < 2 then parts = entry["ip"].split(" : ")
+        k = ""
+        if parts.len >= 2 then k = driverSessionKey(parts[0], parts[1], entry["user"])
+        if k != "" and existingKeys.hasIndex(k) then
+            driverDebug("driverHarvest5hell: dedup skip " + k)
+            continue
+        end if
+        merged.push(entry)
+    end for
+    g.driver.bridge.shells = merged
 
     // Harvest macros and HOME config
     if g.hasIndex("macros") and typeof(g.macros) == "map" then
@@ -92,7 +190,8 @@ end function
 // ---------------------------------------------------------------------------
 // driverSeedState5hell
 // Writes bridge data into g (root custom object) so that when 5hell starts
-// it finds pre-populated macros and any HEX-acquired shells as mys* exports.
+// it finds pre-populated macros and any HEX-acquired shells in g.h5buffer,
+// which 5hell's BUFFER init merges into globals.BUFFER (shows up in glasspool).
 // Does NOT generate launch params. Call before any 5hell launch.
 // ---------------------------------------------------------------------------
 
@@ -108,35 +207,29 @@ driverSeedState5hell = function()
         driverDebug("driverSeedState5hell: restored macros=" + g.driver.bridge.macros.indexes.len)
     end if
 
-    // Inject HEX-sourced shells as 5hell mys* exports, starting after existing depth
-    startIdx = 0
-    if g.hasIndex("stack_pool") and typeof(g.stack_pool) == "number" then
-        startIdx = g.stack_pool + 1
-    end if
-
-    nextIdx = startIdx
+    // Seed HEX-sourced shells into g.h5buffer.
+    // 5hell's BUFFER init (5hell.5pk.src) reads this key and pushes valid shells
+    // into globals.BUFFER after [0] (home shell), then clears the key.
+    // This is the only way to inject shells into globals.* from outside 5hell's runtime.
+    bridgeShells = []
     for entry in g.driver.bridge.shells
         if not entry.hasIndex("source") then continue
         if entry["source"] != "hex" then continue
         if not entry.hasIndex("shell") or typeof(entry["shell"]) != "shell" then continue
-
         comp = entry["shell"].host_computer
         if typeof(comp) != "computer" then
             driverDebug("driverSeedState5hell: stale HEX shell, skip")
             continue
         end if
-
-        g["mys" + nextIdx] = entry["shell"]
-        if entry.hasIndex("metax") and entry["metax"] != null then
-            g["myx" + nextIdx] = entry["metax"]
-        end if
-        if entry.hasIndex("crypto") and entry["crypto"] != null then
-            g["myc" + nextIdx] = entry["crypto"]
-        end if
-        g["myi" + nextIdx] = comp.public_ip + " : " + comp.local_ip
-        driverDebug("driverSeedState5hell: seeded HEX shell as mys" + nextIdx)
-        nextIdx = nextIdx + 1
+        bridgeShells.push(entry["shell"])
+        driverDebug("driverSeedState5hell: queued HEX shell for BUFFER injection ip=" +
+                    comp.public_ip + " · " + comp.local_ip)
     end for
+
+    if bridgeShells.len > 0 then
+        g.h5buffer = bridgeShells
+        driverDebug("driverSeedState5hell: wrote " + bridgeShells.len + " shells to g.h5buffer")
+    end if
 
     driverDebug("driverSeedState5hell: done")
 end function
@@ -198,13 +291,20 @@ driverHarvestHex = function()
             continue
         end if
 
+        if ctx.hasIndex("user") then
+            user = ctx.user
+        else
+            user = driverShellUser(comp)
+        end if
+
         entry = {
             "shell":  sh,
             "metax":  null,
             "crypto": null,
             "source": "hex",
             "index":  idx,
-            "ip":     comp.public_ip + " : " + comp.local_ip
+            "user":   user,
+            "ip":     comp.public_ip + " : " + comp.local_ip(),
         }
         if ctx.hasIndex("metax")  then entry["metax"]  = ctx.metax
         if ctx.hasIndex("crypto") then entry["crypto"] = ctx.crypto
@@ -213,11 +313,34 @@ driverHarvestHex = function()
         driverDebug("driverHarvestHex: captured idx=" + idx + " ip=" + entry["ip"])
     end for
 
+    // Build dedup key set from the full existing list (all sources).
+    existingKeys = {}
+    for e in g.driver.bridge.shells
+        if not e.hasIndex("ip") or not e.hasIndex("user") then continue
+        parts = e["ip"].split(" · ")
+        if parts.len < 2 then parts = e["ip"].split(" : ")
+        if parts.len < 2 then continue
+        k = driverSessionKey(parts[0], parts[1], e["user"])
+        existingKeys[k] = 1
+    end for
+
+    // Rebuild: keep all non-hex entries, append new hex entries that aren't duplicates.
     merged = []
     for e in g.driver.bridge.shells
         if e.hasIndex("source") and e["source"] != "hex" then merged.push(e)
     end for
-    g.driver.bridge.shells = merged + newShells
+    for entry in newShells
+        parts = entry["ip"].split(" : ")
+        if parts.len < 2 then parts = entry["ip"].split(" · ")
+        k = ""
+        if parts.len >= 2 then k = driverSessionKey(parts[0], parts[1], entry["user"])
+        if k != "" and existingKeys.hasIndex(k) then
+            driverDebug("driverHarvestHex: dedup skip " + k)
+            continue
+        end if
+        merged.push(entry)
+    end for
+    g.driver.bridge.shells = merged
 
     driverDebug("driverHarvestHex: done. bridge.shells=" + g.driver.bridge.shells.len)
 end function
@@ -239,25 +362,32 @@ driverSeedHex = function()
 
     // Inject 5hell shells into g.stack only if g.Target prototype exists
     // Use g.stack.add() — not direct assignment — so HEX's dedup and index logic runs correctly
-    if g.hasIndex("Target") and g.stack.hasIndex("add") then
+    if g.driver.bridge.shells.len > 0 then
+        // Stage raw shell objects for HEX to inject during its own startup.
+        // We cannot create g.Target contexts here — constants.src runs on every HEX launch
+        // and reassigns g.Target to a new map object, invalidating any contexts we created
+        // with the old prototype (item isa g.Target fails → "invalid object type: map").
+        // Instead, write shells to g.driver.pendingShells; hex.src reads and injects them
+        // AFTER constants.src and registerExtensions have run, so g.Target is always fresh.
+        pending = []
         for entry in g.driver.bridge.shells
             if not entry.hasIndex("source") then continue
             if entry["source"] != "5hell" then continue
             if not entry.hasIndex("shell") or typeof(entry["shell"]) != "shell" then continue
-
-            sh = entry["shell"]
-            comp = sh.host_computer
+            comp = entry["shell"].host_computer
             if typeof(comp) != "computer" then
                 driverDebug("driverSeedHex: stale 5hell shell, skip")
                 continue
             end if
-
-            ctx = sh.createContext("5hell_bridge")
-            g.stack.add(ctx)
-            driverDebug("driverSeedHex: added 5hell shell via g.stack.add")
+            pending.push(entry["shell"])
+            driverDebug("driverSeedHex: staged shell ip=" + comp.public_ip + " · " + comp.local_ip)
         end for
+        if pending.len > 0 then
+            g.driver.pendingShells = pending
+            driverDebug("driverSeedHex: wrote " + pending.len + " shells to g.driver.pendingShells")
+        end if
     else
-        driverDebug("driverSeedHex: g.Target or g.stack.add not found. Skipping stack injection.")
+        driverDebug("driverSeedHex: no shells to stage")
     end if
 
     // Target passthrough via g.command (HEX's own loop-redirect mechanism)

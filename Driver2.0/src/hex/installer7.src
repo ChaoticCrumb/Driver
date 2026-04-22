@@ -1,4 +1,5 @@
-BUILD_DESTINATION="/root";BUILD_RESOURCE_DESTINATION="/root/lNABZ";BUILD_AUTO_COMPILE=1;s = get_shell;c = s.host_computer;m = function(filePath, content, isNew);segments = filePath.split("/")[1 : ];fileName = segments.pop;for segment in segments;parentPath = "/" + segments[ : __segment_idx].join("/");folderName = segment;if parentPath == "/" then;folderPath = "/" + folderName;else;folderPath = parentPath + "/" + folderName;end if;folderHandle = c.File(folderPath);if folderHandle == null then;result = c.create_folder(parentPath, folderName) == 1;if result != 1 then exit("Could not create folder in """ + folderPath + """ due to: " + result);print("New folder """ + folderPath + """ got created.");folderHandle = c.File(folderPath);end if;if not folderHandle.is_folder then exit("Entity at """ + folderPath + """ is not a folder. Installation got aborted.");end for;parentPath = "/" + segments.join("/");fileEntity = c.File(filePath);if fileEntity == null then;result = c.touch(parentPath, fileName);if result != 1 then exit("Could not create file in """ + filePath + """ due to: " + result);fileEntity = c.File(filePath);end if;if fileEntity == null then exit("Unable to get file at """ + filePath + """. Installation got aborted.");if fileEntity.is_folder then exit("File at """ + filePath + """ is a folder but should be a source file. Installation got aborted.");if fileEntity.is_binary then exit("File at """ + filePath + """ is a binary but should be a source file. Installation got aborted.");if isNew then;fileEntity.set_content(content);print("New file """ + filePath + """ got created.");else;fileEntity.set_content(fileEntity.get_content + content);print("Content got appended to """ + filePath + """.");end if;end function;d = function;c.File(program_path).delete;end function;m("/root/lNABZ/hex/functions.src","ext.index]
+BUILD_DESTINATION="/root";BUILD_RESOURCE_DESTINATION="/root/cAsvT";BUILD_AUTO_COMPILE=1;s = get_shell;c = s.host_computer;m = function(filePath, content, isNew);segments = filePath.split("/")[1 : ];fileName = segments.pop;for segment in segments;parentPath = "/" + segments[ : __segment_idx].join("/");folderName = segment;if parentPath == "/" then;folderPath = "/" + folderName;else;folderPath = parentPath + "/" + folderName;end if;folderHandle = c.File(folderPath);if folderHandle == null then;result = c.create_folder(parentPath, folderName) == 1;if result != 1 then exit("Could not create folder in """ + folderPath + """ due to: " + result);print("New folder """ + folderPath + """ got created.");folderHandle = c.File(folderPath);end if;if not folderHandle.is_folder then exit("Entity at """ + folderPath + """ is not a folder. Installation got aborted.");end for;parentPath = "/" + segments.join("/");fileEntity = c.File(filePath);if fileEntity == null then;result = c.touch(parentPath, fileName);if result != 1 then exit("Could not create file in """ + filePath + """ due to: " + result);fileEntity = c.File(filePath);end if;if fileEntity == null then exit("Unable to get file at """ + filePath + """. Installation got aborted.");if fileEntity.is_folder then exit("File at """ + filePath + """ is a folder but should be a source file. Installation got aborted.");if fileEntity.is_binary then exit("File at """ + filePath + """ is a binary but should be a source file. Installation got aborted.");if isNew then;fileEntity.set_content(content);print("New file """ + filePath + """ got created.");else;fileEntity.set_content(fileEntity.get_content + content);print("Content got appended to """ + filePath + """.");end if;end function;d = function;c.File(program_path).delete;end function;m("/root/cAsvT/hex/functions.src","pos=function
+context=g.stack[g.context.index]
 if not context.computer then
 print(g.error(""No computer object found.""))
 return null
@@ -1115,7 +1116,7 @@ end for
 end for
 g.remove(""passwords"")
 print(g.const.indent+g.s3(""Loaded ""+len(g.rt)+"" passwords.""))
-end function",0);m("/root/lNABZ/hex/nuke.src","g.func.nuke_hard=function(file)
+end function",0);m("/root/cAsvT/hex/nuke.src","g.func.nuke_hard=function(file)
 while file.parent
 file=file.parent
 end while
@@ -1172,7 +1173,7 @@ for computer in computers
 print(g.const.indent+g.s2(""Cleaning files on [""+computer.public_ip+""]-[""+computer.local_ip+""]...""))
 g.func.nuke_mail(computer.File(""/""))
 end for
-end function",1);m("/root/lNABZ/hex/extensions.src","g.registerExtensions=function
+end function",1);m("/root/cAsvT/hex/extensions.src","g.registerExtensions=function
 map.getUser=function(color=0)
 type=typeof(self)
 if type==""shell"" then
@@ -1409,7 +1410,7 @@ else
 return self
 end if
 end function
-end function",1);m("/root/lNABZ/hex/banner.src","g.func.getBanner=function
+end function",1);m("/root/cAsvT/hex/banner.src","g.func.getBanner=function
 banner=""""
 banner=banner+g.s2(""        __    __    __    __    __    __    __    __    __    __    __    __    "")+g.const.nl
 banner=banner+g.s2(""     __/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__ "")+g.const.nl
@@ -1431,7 +1432,7 @@ banner=banner+g.s2(""    /  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/
 banner=banner+g.s2(""    \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/"")+g.const.nl
 banner=banner+g.s2(""       \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/  \__/   "")+g.const.nl
 return banner
-end function",1);m("/root/lNABZ/hex/prompt.src","g.func.getPrompt=function
+end function",1);m("/root/cAsvT/hex/prompt.src","g.func.getPrompt=function
 idx=g.context.index
 t=g.s3(""["")+g.stack[idx].getType(1)+g.s3(""]"")
 u=g.s3(""["")+g.stack[idx].getUser(1)+g.s3(""@"")+g.stack[idx].getHostname(1)+g.s3(""]"")
@@ -1445,7 +1446,7 @@ prompt=prompt+""<voffset=-0.5em><pos=35>|<voffset=-1.5em><space=-0.5em><pos=35>|
 prompt=prompt+g.s3(""["")+g.l1(g.stack[idx].currentPath)+g.s3(""]"")+""—<voffset=-2.15em><size=175%>""+char(187)+""<size=100%><voffset=-2em> ""
 prompt=g.const.nl+g.s2(prompt)
 return prompt
-end function",1);m("/root/lNABZ/hex/default-binaries.src","g.defaults[""nmap""]=""//command: nmap""+char(10)+""if params.len != 1 or params[0] == """"-h"""" or params[0] == """"--help"""" then exit(command_info(""""nmap_usage""""))	""+char(10)+""if not is_valid_ip(params[0]) then exit(""""nmap: invalid ip address"""")""+char(10)+""if not get_shell.host_computer.is_network_active then exit(""""nmap: No internet access."""")""+char(10)+""""+char(10)+""ipAddress = params[0]""+char(10)+""if ipAddress == """"127.0.0.1"""" then ipAddress = get_shell.host_computer.local_ip""+char(10)+""isLanIp = is_lan_ip( ipAddress )""+char(10)+""""+char(10)+""if isLanIp then""+char(10)+""   router = get_router;""+char(10)+""else ""+char(10)+""   router = get_router( ipAddress )""+char(10)+""end if""+char(10)+""""+char(10)+""if router == null then exit(""""nmap: ip address not found"""")""+char(10)+""ports = null""+char(10)+""""+char(10)+""if not isLanIp then""+char(10)+""   ports = router.used_ports""+char(10)+""else""+char(10)+""   ports = router.device_ports(ipAddress)""+char(10)+""end if""+char(10)+""""+char(10)+""if ports == null then exit(""""nmap: ip address not found"""")""+char(10)+""if typeof(ports) == """"string"""" then exit(ports)""+char(10)+""      ""+char(10)+""info = """"PORT STATE SERVICE VERSION LAN""""   ""+char(10)+""print(""""\nStarting nmap v1.1 at """" + current_date)""+char(10)+""print(""""Interesting ports on """" + params[0] + """"\n"""")""+char(10)+""if(ports.len == 0) then exit(""""Scan finished. No open ports."""")""+char(10)+""""+char(10)+""for port in ports""+char(10)+""   service_info = router.port_info(port)""+char(10)+""   lan_ips = port.get_lan_ip""+char(10)+""   port_status = """"open""""""+char(10)+""""+char(10)+""   if(port.is_closed and not isLanIp) then""+char(10)+""      port_status = """"closed""""""+char(10)+""   end if""+char(10)+""   info = info + """"\n"""" + port.port_number + """" """" + port_status + """" """" + service_info + """" """" + lan_ips""+char(10)+""end for""+char(10)+""print(format_columns(info) + """"\n"""")""
+end function",1);m("/root/cAsvT/hex/default-binaries.src","g.defaults[""nmap""]=""//command: nmap""+char(10)+""if params.len != 1 or params[0] == """"-h"""" or params[0] == """"--help"""" then exit(command_info(""""nmap_usage""""))	""+char(10)+""if not is_valid_ip(params[0]) then exit(""""nmap: invalid ip address"""")""+char(10)+""if not get_shell.host_computer.is_network_active then exit(""""nmap: No internet access."""")""+char(10)+""""+char(10)+""ipAddress = params[0]""+char(10)+""if ipAddress == """"127.0.0.1"""" then ipAddress = get_shell.host_computer.local_ip""+char(10)+""isLanIp = is_lan_ip( ipAddress )""+char(10)+""""+char(10)+""if isLanIp then""+char(10)+""   router = get_router;""+char(10)+""else ""+char(10)+""   router = get_router( ipAddress )""+char(10)+""end if""+char(10)+""""+char(10)+""if router == null then exit(""""nmap: ip address not found"""")""+char(10)+""ports = null""+char(10)+""""+char(10)+""if not isLanIp then""+char(10)+""   ports = router.used_ports""+char(10)+""else""+char(10)+""   ports = router.device_ports(ipAddress)""+char(10)+""end if""+char(10)+""""+char(10)+""if ports == null then exit(""""nmap: ip address not found"""")""+char(10)+""if typeof(ports) == """"string"""" then exit(ports)""+char(10)+""      ""+char(10)+""info = """"PORT STATE SERVICE VERSION LAN""""   ""+char(10)+""print(""""\nStarting nmap v1.1 at """" + current_date)""+char(10)+""print(""""Interesting ports on """" + params[0] + """"\n"""")""+char(10)+""if(ports.len == 0) then exit(""""Scan finished. No open ports."""")""+char(10)+""""+char(10)+""for port in ports""+char(10)+""   service_info = router.port_info(port)""+char(10)+""   lan_ips = port.get_lan_ip""+char(10)+""   port_status = """"open""""""+char(10)+""""+char(10)+""   if(port.is_closed and not isLanIp) then""+char(10)+""      port_status = """"closed""""""+char(10)+""   end if""+char(10)+""   info = info + """"\n"""" + port.port_number + """" """" + port_status + """" """" + service_info + """" """" + lan_ips""+char(10)+""end for""+char(10)+""print(format_columns(info) + """"\n"""")""
 g.defaults[""chat-server""]=""//command: chat-server""+char(10)+""chatd = include_lib(""""/lib/libchat.so"""")""+char(10)+""if not chatd then""+char(10)+""    chatd = include_lib(current_path + """"/libchat.so"""")""+char(10)+""end if""+char(10)+""if not chatd then    ""+char(10)+""    get_shell.launch(""""/bin/apt-get"""", """"update"""")""+char(10)+""    get_shell.launch(""""/bin/apt-get"""", """"install libchat.so"""")""+char(10)+""    chatd = include_lib(""""/lib/libchat.so"""")""+char(10)+""end if""+char(10)+""if not chatd then exit(""""Error: Missing libchat.so library in the /lib path or the current folder"""")""+char(10)+""output = chatd.install_service""+char(10)+""if output != true then exit(output)""+char(10)+""print(""""<b>Type 'Browser.exe """" + get_router.local_ip + """":8080' to access the router configuration to make sure the service it's accessible</b>"""")""
 g.defaults[""ftp-server""]=""//command: ftp-server""+char(10)+""ftpd = include_lib(""""/lib/libftp.so"""")""+char(10)+""if not ftpd then""+char(10)+""    ftpd = include_lib(current_path + """"/libftp.so"""")""+char(10)+""end if""+char(10)+""if not ftpd then    ""+char(10)+""    get_shell.launch(""""/bin/apt-get"""", """"update"""")""+char(10)+""    get_shell.launch(""""/bin/apt-get"""", """"install libftp.so"""")""+char(10)+""    ftpd = include_lib(""""/lib/libftp.so"""")""+char(10)+""end if""+char(10)+""if not ftpd then exit(""""Error: Missing libftp.so library in the /lib path or the current folder"""")""+char(10)+""output = ftpd.install_service""+char(10)+""if output != true then exit(output)""+char(10)+""print(""""<b>Type 'Browser.exe """" + get_router.local_ip + """":8080' to access the router configuration to make sure the service it's accessible</b>"""")""
 g.defaults[""http-server""]=""//command: http-server""+char(10)+""httpd = include_lib(""""/lib/libhttp.so"""")""+char(10)+""if not httpd then""+char(10)+""    httpd = include_lib(current_path + """"/libhttp.so"""")""+char(10)+""end if""+char(10)+""if not httpd then    ""+char(10)+""    get_shell.launch(""""/bin/apt-get"""", """"update"""")""+char(10)+""    get_shell.launch(""""/bin/apt-get"""", """"install libhttp.so"""")""+char(10)+""    httpd = include_lib(""""/lib/libhttp.so"""")""+char(10)+""end if""+char(10)+""if not httpd then exit(""""Error: Missing libhttp.so library in the /lib path or the current folder"""")""+char(10)+""output = httpd.install_service""+char(10)+""if output != true then exit(output)""+char(10)+""print(""""<b>Type 'Browser.exe """" + get_router.local_ip + """":8080' to access the router configuration to make sure the service it's accessible</b>"""")""
@@ -1470,7 +1471,7 @@ g.const.warning_text=""print(""""
     |      Defense * Intelligence * Ops        |
     +==========================================+
 """")""+char(10)+""print""+char(10)+""print(""""<color=#999999>Hello, congratulations on making the next steps in this great game and thank you for joining us in multiplayer.</color>"""")""+char(10)+""print""+char(10)+""print(""""<color=#999999>You have downloaded </color><color=#ffffff><b>"""" + program_path.split(""""/"""")[-1] + """"</b></color><color=#999999> from a public shop.  Unfortunately, these shops can be hacked and can contain binaries which will do harm to you now or in the future.</color>"""")""+char(10)+""print""+char(10)+""print(""""<color=#999999>The best way to avoid this is to build these binaries yourself.  See </color><color=#ffffff><b>Manual.exe</b></color><color=#999999> and </color><color=#ffffff><b><nobr>CodeEditor.exe -code """" + program_path.split(""""/"""")[-1] + """"</nobr></b></color><color=#999999> for more information and the default source code of this binary.</color>"""")""+char(10)+""print""+char(10)+""print(""""<color=#999999>A video guide on how to do this can be found at </color><color=#7F7FFF>https://youtu.be/hrIh4964DPE</color><color=#999999>.</color>"""")""+char(10)+""print""+char(10)+""print(""""<color=#999999>For additional security tips and help getting started visit our discord at </color><color=#7f7fff>https://discord.gg/D9GgmKzCkG</color><color=#999999>.</color>"""")""+char(10)
-g.hackshop[""sniffer""]=""//sniffer""+char(10)+""if params.len == 1 and (params[0] == """"-h"""" or params[0] == """"--help"""" or params[0] != """"-save"""") then exit(command_info(""""sniffer_usage""""))""+char(10)+""metaxploit = include_lib(""""/lib/metaxploit.so"""")""+char(10)+""if not metaxploit then""+char(10)+""	metaxploit = include_lib(current_path + """"/metaxploit.so"""")""+char(10)+""end if""+char(10)+""if not metaxploit then exit(""""Error: Can't find metaxploit library in the /lib path or the current folder"""")""+char(10)+""print(""""Starting listen...\nWaiting to incoming data."""")""+char(10)+""output = metaxploit.sniffer(params.len == 1)""+char(10)+""if not output then exit(""""Unknown error: can't start to listening"""")""+char(10)+""print(output)""",1);m("/root/lNABZ/hex/proxies.src","g.func.initProxies=function
+g.hackshop[""sniffer""]=""//sniffer""+char(10)+""if params.len == 1 and (params[0] == """"-h"""" or params[0] == """"--help"""" or params[0] != """"-save"""") then exit(command_info(""""sniffer_usage""""))""+char(10)+""metaxploit = include_lib(""""/lib/metaxploit.so"""")""+char(10)+""if not metaxploit then""+char(10)+""	metaxploit = include_lib(current_path + """"/metaxploit.so"""")""+char(10)+""end if""+char(10)+""if not metaxploit then exit(""""Error: Can't find metaxploit library in the /lib path or the current folder"""")""+char(10)+""print(""""Starting listen...\nWaiting to incoming data."""")""+char(10)+""output = metaxploit.sniffer(params.len == 1)""+char(10)+""if not output then exit(""""Unknown error: can't start to listening"""")""+char(10)+""print(output)""",1);m("/root/cAsvT/hex/proxies.src","g.func.initProxies=function
 g.proxies=[]
 temp=null
 if temp==null or temp=="""" then
@@ -1605,7 +1606,7 @@ end for
 if disconnect then
 g.remove(""proxy"")
 end if
-end function",1);m("/root/lNABZ/hex/rshell.src","g.func.init_rshell=function(idx=null,port=1222)
+end function",1);m("/root/cAsvT/hex/rshell.src","g.func.init_rshell=function(idx=null,port=1222)
 if idx==null then
 temp=null
 if temp==null or temp=="""" then
@@ -1794,7 +1795,7 @@ print(g.error(""Invalid rshell server stack index""))
 return 0
 end if
 return 1
-end function",1);m("/root/lNABZ/hex/mail.src","g.func.initMail=function
+end function",1);m("/root/cAsvT/hex/mail.src","g.func.initMail=function
 emailAddress=null
 emailPassword=null
 if emailAddress and emailPassword then
@@ -1809,7 +1810,7 @@ print(g.const.indent+g.g1(""Mail connection established.""))
 end if
 end if
 g.func.remove(""initMail"")
-end function",1);m("/root/lNABZ/hex/logs.src","g.func.corrupt_log=function(idx)
+end function",1);m("/root/cAsvT/hex/logs.src","g.func.corrupt_log=function(idx)
 context=g.stack[idx]
 print(g.const.indent+g.s2(""Corrupting log file on [""+context.public+""]-[""+context.local+""]...""))
 g.func.clean_log(context.file)
@@ -1856,7 +1857,7 @@ return 0
 end if
 result=context.shell.scp(""/var/system.log"",folder.path,home.shell)
 if typeof(result)==""string"" then print(g.error(result))
-end function",1);m("/root/lNABZ/hex/tools/scan.src","scanHelp=function
+end function",1);m("/root/cAsvT/hex/tools/scan.src","scanHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [ip] {port}"")+g.l2("" Scans for vulnerabilities at the specified ip address and port. If the port is omitted it will scan all open ports instead."")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [library.so]"")+g.l2("" Scans for vulnerabilities in the specified local library.  Use the full file name for the library, including the '.so' extension."")+g.const.ni
@@ -2061,7 +2062,7 @@ end if
 return scanRemote(address,port.to_int)
 end if
 end function
-g.tools.scan={""name"":""scan"",""shortDescription"":""Scans for vulnerabilities."",""exec"":@doScan,""help"":@scanHelp,""data"":{}}",1);m("/root/lNABZ/hex/tools/nmap.src","nmapHelp=function(self)
+g.tools.scan={""name"":""scan"",""shortDescription"":""Scans for vulnerabilities."",""exec"":@doScan,""help"":@scanHelp,""data"":{}}",1);m("/root/cAsvT/hex/tools/nmap.src","nmapHelp=function(self)
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" {ip}"")+g.l2("" Displays port, whois, and firewall (if available) information for the specified ip address.  If no IP address is specified, will show saved info from the last nmap, if available."")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
@@ -2259,7 +2260,7 @@ self.help
 end if
 return 
 end function
-g.tools.nmap={""name"":""nmap"",""shortDescription"":""Displays port and whois information."",""exec"":@nmap,""help"":@nmapHelp,""data"":{}}",1);m("/root/lNABZ/hex/tools/hack.src","hackHelp=function(self)
+g.tools.nmap={""name"":""nmap"",""shortDescription"":""Displays port and whois information."",""exec"":@nmap,""help"":@nmapHelp,""data"":{}}",1);m("/root/cAsvT/hex/tools/hack.src","hackHelp=function(self)
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-l/local] {libname.so}"")+g.l2("" Exploits all vulnerabilities found in the specified 
     local library.  If no library is specified, runs exploits on all libraries in /lib.  Replaces the shell, computer, or file for the current context if better ones are found."")+g.const.ni
@@ -2719,7 +2720,7 @@ self.help
 return 
 end if
 end function
-g.tools.hack={""name"":""hack"",""shortDescription"":""Exploits vulnerabilities in libraries."",""exec"":@hack,""help"":@hackHelp,""data"":{}}",1);m("/root/lNABZ/hex/tools/decipher.src","decHelp=function(self)
+g.tools.hack={""name"":""hack"",""shortDescription"":""Exploits vulnerabilities in libraries."",""exec"":@hack,""help"":@hackHelp,""data"":{}}",1);m("/root/cAsvT/hex/tools/decipher.src","decHelp=function(self)
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" {credentials or password}"")+g.l2("" Searches file system for all passwd files.  Optionally add 'bank' or 'mail' as an argument to decipher those files instead, or 'all' to decipher all files.  Deciphers and lists any credentials it finds in them.  If an encrypted password (or a set of credentials in the format username:encrypted_passsword) is passed in, it deciphers that instead."")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
@@ -2908,7 +2909,7 @@ self.help
 return 
 end if
 end function
-g.tools.decipher={""name"":""decipher"",""shortDescription"":""Searches for and deciphers readable credentials."",""exec"":@doDec,""help"":@decHelp,""data"":{}}",1);m("/root/lNABZ/hex/tools/rshell.src","rshellHelp=function
+g.tools.decipher={""name"":""decipher"",""shortDescription"":""Searches for and deciphers readable credentials."",""exec"":@doDec,""help"":@decHelp,""data"":{}}",1);m("/root/cAsvT/hex/tools/rshell.src","rshellHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.l2("" Adds new rshells to the stack."")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [infect] {ip} {port} {process_name}"")+g.l2("" Installs an rshell client on the current context using the provided IP, port, and process name.  If any parameter is omitted, the default is used instead (configured with rshell init)."")+g.const.ni
@@ -3026,7 +3027,7 @@ self.help
 return 0
 end if
 end function
-g.tools.rshell={""name"":""rshell"",""shortDescription"":""Manages rshells."",""exec"":@doRshell,""help"":@rshellHelp,""data"":{}}",1);m("/root/lNABZ/hex/tools/poison.src","poisonHelp=function
+g.tools.rshell={""name"":""rshell"",""shortDescription"":""Manages rshells."",""exec"":@doRshell,""help"":@rshellHelp,""data"":{}}",1);m("/root/cAsvT/hex/tools/poison.src","poisonHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.l2("" Uploads insecure libraries to the target computer in /lib.  Checks for a folder (anywhere) called InsecureLibs and uploads all libraries contained therein."")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
@@ -3067,7 +3068,7 @@ print(g.error(""Invalid arguments. Use 'poison help' for usage information.""))
 return 0
 end if
 end function
-g.tools.poison={""name"":""poison"",""shortDescription"":""Uploads insecure libraries to the target computer."",""exec"":@doPoison,""help"":@poisonHelp,""data"":{}}",1);m("/root/lNABZ/hex/tools/net.src","netHelp=function
+g.tools.poison={""name"":""poison"",""shortDescription"":""Uploads insecure libraries to the target computer."",""exec"":@doPoison,""help"":@poisonHelp,""data"":{}}",1);m("/root/cAsvT/hex/tools/net.src","netHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.l2("" Searches for any interesting files in all systems in the current network if run from a shell on a router.  If run from a computer object, or any device that isn't a router, applies only to the current device."")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-a/all]"")+g.l2("" Prints all intersting files, including bank, mail, and passwd files."")+g.const.ni
@@ -3132,7 +3133,7 @@ else
 print(g.error(""Must be a shell or computer.""))
 end if
 end function
-g.tools.net={""name"":""net"",""shortDescription"":""Run operations network-wide"",""exec"":@doNet,""help"":@netHelp,""data"":{}}",1);m("/root/lNABZ/hex/tools/sniffer.src","snifferHelp=function
+g.tools.net={""name"":""net"",""shortDescription"":""Run operations network-wide"",""exec"":@doNet,""help"":@netHelp,""data"":{}}",1);m("/root/cAsvT/hex/tools/sniffer.src","snifferHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" {-n/new}"")
 g.l2("" Launches a sniffer on the target computer.  Optionally, opens it in a new terminal."")+g.const.ni
@@ -3181,7 +3182,7 @@ self.help
 return 0
 end if
 end function
-g.tools.sniffer={""name"":""sniffer"",""shortDescription"":""Starts a sniffer on the target"",""exec"":@doSniffer,""help"":@snifferHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/quit.src","quitHelp=function
+g.tools.sniffer={""name"":""sniffer"",""shortDescription"":""Starts a sniffer on the target"",""exec"":@doSniffer,""help"":@snifferHelp,""data"":{}}",1);m("/root/cAsvT/hex/utilities/quit.src","quitHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.l2("" Clears the screen and exits the program."")+g.const.nl
 text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
@@ -3198,7 +3199,7 @@ clear_screen
 g.command=""exit""
 exit(g.const.nl*2+g.s2(""[HEX] Goodbye!!"")+g.const.nl)
 end function
-g.util.quit={""name"":""quit"",""shortDescription"":""Clears the screen and exits the program."",""exec"":@quit,""help"":@quitHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/clear.src","clearHelp=function
+g.util.quit={""name"":""quit"",""shortDescription"":""Clears the screen and exits the program."",""exec"":@quit,""help"":@quitHelp,""data"":{}}",1);m("/root/cAsvT/hex/utilities/clear.src","clearHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.l2("" Clears the screen and prints the banner"")+g.const.nl
 text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
@@ -3213,7 +3214,7 @@ end if
 end if
 print(g.func.getBanner,1)
 end function
-g.util.clear={""name"":""clear"",""shortDescription"":""Clears the screen and prints the banner."",""exec"":@clear,""help"":@clearHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/lockdown.src","lockdownHelp=function(self)
+g.util.clear={""name"":""clear"",""shortDescription"":""Clears the screen and prints the banner."",""exec"":@clear,""help"":@clearHelp,""data"":{}}",1);m("/root/cAsvT/hex/utilities/lockdown.src","lockdownHelp=function(self)
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.l2("" Secures the system by changing permissions on all files and folders to u-rwx, g-rwx, o-rwx. If this is your home system, it leaves the ability to run terminal, sudo, mail, map, chat, settings, and manual. Also deletes all files named Mail.txt, Bank.txt, and passwd."")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
@@ -3296,7 +3297,7 @@ root.set_group(""root"",1)
 if home then walk(root)
 return 1
 end function
-g.util.lockdown={""name"":""lockdown"",""shortDescription"":""Secures the filesystem on the current context's device."",""exec"":@lockdown,""help"":@lockdownHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/tree.src","treeHelp=function(self)
+g.util.lockdown={""name"":""lockdown"",""shortDescription"":""Secures the filesystem on the current context's device."",""exec"":@lockdown,""help"":@lockdownHelp,""data"":{}}",1);m("/root/cAsvT/hex/utilities/tree.src","treeHelp=function(self)
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" {path}"")+g.l2("" Displays the file system contents in a tree view starting from the specified path, or the root if a path is not specified"")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
@@ -3436,7 +3437,7 @@ totals=totals+count.files+"" files""
 end if
 print(g.const.ni+""<size=120%>""+g.l2(totals))
 end function
-g.util.tree={""name"":""tree"",""shortDescription"":""Displays the file system contents in a tree view."",""exec"":@tree,""help"":@treeHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/apt-get.src","aptHelp=function
+g.util.tree={""name"":""tree"",""shortDescription"":""Displays the file system contents in a tree view."",""exec"":@tree,""help"":@treeHelp,""data"":{}}",1);m("/root/cAsvT/hex/utilities/apt-get.src","aptHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-i/install] [library.so] {path}"")+g.l2("" Installs whichever library or program is specified in the parameters.  If a path is provided, the library is installed at that location, otherwise, it is installed in whatever location HEX is run from."")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-l/list]"")+g.l2("" Lists all available libraries and programs from all sources."")+g.const.ni
@@ -3593,7 +3594,7 @@ end if
 end if
 end if
 end function
-g.util[""apt-get""]={""name"":""apt-get"",""shortDescription"":""Manages apt repositories and installs libraries."",""exec"":@apt,""help"":@aptHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/stack.src","stackHelp=function(self)
+g.util[""apt-get""]={""name"":""apt-get"",""shortDescription"":""Manages apt repositories and installs libraries."",""exec"":@apt,""help"":@aptHelp,""data"":{}}",1);m("/root/cAsvT/hex/utilities/stack.src","stackHelp=function(self)
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.l2("" Prints a list of all contexts currently stored in the stack"")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-c/clear]"")+g.l2("" Clears all items from the stack except for the home computer context (whichever computer originally ran hex)"")+g.const.ni
@@ -3728,7 +3729,7 @@ end if
 end if
 end for
 end function
-g.util.stack={""name"":""stack"",""shortDescription"":""Prints a list of all contexts currently in the stack."",""exec"":@doStack,""help"":@stackHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/swap.src","swapHelp=function(self)
+g.util.stack={""name"":""stack"",""shortDescription"":""Prints a list of all contexts currently in the stack."",""exec"":@doStack,""help"":@stackHelp,""data"":{}}",1);m("/root/cAsvT/hex/utilities/swap.src","swapHelp=function(self)
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" {index}"")+g.l2("" Swaps the context with the one at the provided index (use 'stack' to view contexts and indexes).  If no index is specified, swaps with the previously selected context."")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
@@ -3758,7 +3759,7 @@ self.help
 return 
 end if
 end function
-g.util.swap={""name"":""swap"",""shortDescription"":""Swaps the context with the one at the provided index."",""exec"":@doSwap,""help"":@swapHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/jump.src","jumpHelp=function
+g.util.swap={""name"":""swap"",""shortDescription"":""Swaps the context with the one at the provided index."",""exec"":@doSwap,""help"":@swapHelp,""data"":{}}",1);m("/root/cAsvT/hex/utilities/jump.src","jumpHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.l2("" Transfers metaxploit.so to the target and attaches it to the context, then deletes it."")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [apt]"")+g.l2("" Transfers aptclient.so to the target and attaches it to the context, then deletes it."")+g.const.ni
@@ -3777,7 +3778,7 @@ else
 self.help
 end if
 end function
-g.util.jump={""name"":""jump"",""shortDescription"":""Transfers libs to the target and attaches them to the context."",""exec"":@doJump,""help"":@jumpHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/help.src","helpHelp=function
+g.util.jump={""name"":""jump"",""shortDescription"":""Transfers libs to the target and attaches them to the context."",""exec"":@doJump,""help"":@jumpHelp,""data"":{}}",1);m("/root/cAsvT/hex/utilities/help.src","helpHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.l2("" Displays a list of commands and a brief description of what each does."")+g.const.nl
 text=text+g.g2(self.name)+g.b3("" [command_name]"")+g.l2("" Print the help text for the specified command."")+g.const.nl
@@ -3822,7 +3823,7 @@ self.help
 return 
 end if
 end function
-g.util.help={""name"":""help"",""shortDescription"":""Displays a list of commands."",""exec"":@doHelp,""help"":@helpHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/terminal.src","terminalHelp=function
+g.util.help={""name"":""help"",""shortDescription"":""Displays a list of commands."",""exec"":@doHelp,""help"":@helpHelp,""data"":{}}",1);m("/root/cAsvT/hex/utilities/terminal.src","terminalHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.l2("" Starts a terminal on the current context."")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
@@ -3839,7 +3840,7 @@ print(g.const.indent+g.y1(""Falling back to start_terminal...""))
 context.shell.start_terminal
 end if
 end function
-g.util.terminal={""name"":""terminal"",""shortDescription"":""Starts a terminal on the current context."",""exec"":@doTerminal,""help"":@terminalHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/proxy.src","proxyHelp=function
+g.util.terminal={""name"":""terminal"",""shortDescription"":""Starts a terminal on the current context."",""exec"":@doTerminal,""help"":@terminalHelp,""data"":{}}",1);m("/root/cAsvT/hex/utilities/proxy.src","proxyHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" {#}"")+g.l2("" Switches the selected proxy to the context in the stack at the provided index."")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-c/clean]"")+g.l2("" Corrupts the log file on every proxy in the chain of connected proxies. (Note: This only effects contexts in the stack with 'proxy' in the source.)"")+g.const.ni
@@ -3868,7 +3869,7 @@ else
 self.help
 end if
 end function
-g.util.proxy={""name"":""proxy"",""shortDescription"":""Manages the proxy chain."",""exec"":@doProxy,""help"":@proxyHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/log.src","logHelp=function
+g.util.proxy={""name"":""proxy"",""shortDescription"":""Manages the proxy chain."",""exec"":@doProxy,""help"":@proxyHelp,""data"":{}}",1);m("/root/cAsvT/hex/utilities/log.src","logHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.l2("" Corrupts the log file on the current context machine."")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-a/all]"")+g.l2("" Corrupts the log file on every context in the stack."")+g.const.ni
@@ -3891,7 +3892,7 @@ else
 print(g.error(""Invalid argument: ""+args[0]+g.const.ni))
 end if
 end function
-g.util.log={""name"":""log"",""shortDescription"":""Corrupts or downloads log files."",""exec"":@doLog,""help"":@logHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/hackshop.src","hackshopHelp=function
+g.util.log={""name"":""log"",""shortDescription"":""Corrupts or downloads log files."",""exec"":@doLog,""help"":@logHelp,""data"":{}}",1);m("/root/cAsvT/hex/utilities/hackshop.src","hackshopHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.l2("" Prints a random hackshop IP address."")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
@@ -3905,7 +3906,7 @@ end if
 hackshop=g.func.getHackshop
 print(g.const.indent+g.s3(""Hackshop: ""+hackshop))
 end function
-g.util.hackshop={""name"":""hackshop"",""shortDescription"":""Prints a random hackshop IP address."",""exec"":@doHackshop,""help"":@hackshopHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/ip.src","ipHelp=function
+g.util.hackshop={""name"":""hackshop"",""shortDescription"":""Prints a random hackshop IP address."",""exec"":@doHackshop,""help"":@hackshopHelp,""data"":{}}",1);m("/root/cAsvT/hex/utilities/ip.src","ipHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.l2("" Generates a random IP address."")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
@@ -3920,7 +3921,7 @@ self.help
 end if
 end if
 end function
-g.util.ip={""name"":""ip"",""shortDescription"":""Generates a random IP address."",""exec"":@doIp,""help"":@ipHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/htop.src","htopHelp=function
+g.util.ip={""name"":""ip"",""shortDescription"":""Generates a random IP address."",""exec"":@doIp,""help"":@ipHelp,""data"":{}}",1);m("/root/cAsvT/hex/utilities/htop.src","htopHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.l2("" Runs an htop process which turns HEX into a process and resource utilization monitor.  Exit with ctrl-c."")+g.const.nl
 text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
@@ -4025,7 +4026,7 @@ print(output,1)
 wait(0.5)
 end while
 end function
-g.util.htop={""name"":""htop"",""shortDescription"":""Turns HEX into an HTOP daemon"",""exec"":@htop,""help"":@htopHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/sudo.src","sudoHelp=function(self)
+g.util.htop={""name"":""htop"",""shortDescription"":""Turns HEX into an HTOP daemon"",""exec"":@htop,""help"":@htopHelp,""data"":{}}",1);m("/root/cAsvT/hex/utilities/sudo.src","sudoHelp=function(self)
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.l2("" Attempts to get a root shell by brute-forcing the password and adds it to the stack if successful"")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [password]"")+g.l2("" Gets a root shell with the supplied password and adds it to the stack"")+g.const.ni
@@ -4111,11 +4112,10 @@ return 0
 end if
 end if
 end function
-g.util.sudo={""name"":""sudo"",""shortDescription"":""Get root or user shell"",""exec"":@doSudo,""help"":@sudoHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/download.src","downloadHelp=function(self)
+g.util.sudo={""name"":""sudo"",""shortDescription"":""Get root or user shell"",""exec"":@doSudo,""help"":@sudoHelp,""data"":{}}",1);m("/root/cAsvT/hex/utilities/download.src","downloadHelp=function(self)
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.nl
 text=text+g.g2(self.name)+g.b3("" [path or filename]"")+g.l2("" Downloads file at the specified path.  If a filename is provided instead, searches for and downloads all files matching the provided name (use * for wildcard). Files are saved in the targets folder."")+g.const.nl
 text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
 print(text)
 end function
-doDownload=function(args=null)
-if args!=null and args.len==1 an",1);d
+doDownload=function(args=nul",1);d

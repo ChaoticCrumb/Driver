@@ -60,6 +60,16 @@ globals.homePath = home_dir
 globals.instance = globals.localmachine.File(program_path)
 globals.T_BUF = [(localip+"@"+pubip)] // transmission buffer
 globals.BUFFER = [get_shell]
+// Merge any Driver-bridged shells from g.h5buffer into BUFFER so they appear in glasspool.
+// g.h5buffer is a plain list of shell objects written by driverSeedState5hell.
+// We push each valid shell in, then clear the key so it doesn't persist stale data.
+_g5 = get_custom_object
+if _g5.hasIndex("h5buffer") and typeof(_g5.h5buffer) == "list" then
+    for _b5 in _g5.h5buffer
+        if typeof(_b5) == "shell" then globals.BUFFER.push(@_b5)
+    end for
+    _g5.remove("h5buffer")
+end if
 //
 globals.spoolpath = 0 // 0 false, string true
 globals.SAFEWORD = "@STOP" // use @STOP (or this value) in a do script and/or in an if statement within a do script to 'break' the do loop
@@ -2926,5 +2936,7 @@ command.quit = function(state=1, arg2=0, arg3=0, arg4=0) // NOT reboot command, 
 			if user_input("Exit "+colorRed+"5hell"+char(8482)+CT+"? [y/N]"+char(10)+"||: ",0,1).lower != "y" then return "aborting shutdown..."
 		end if
 	end if
-	exit(state)
+    // Write BUFFER to get_custom_object so Driver can harvest all acquired shells after exit.
+    get_custom_object.h5buffer = globals.BUFFER
+    exit(state)
 end function

@@ -1,4 +1,5 @@
-BUILD_DESTINATION="/root";BUILD_RESOURCE_DESTINATION="/root/lNABZ";BUILD_AUTO_COMPILE=1;s = get_shell;c = s.host_computer;m = function(filePath, content, isNew);segments = filePath.split("/")[1 : ];fileName = segments.pop;for segment in segments;parentPath = "/" + segments[ : __segment_idx].join("/");folderName = segment;if parentPath == "/" then;folderPath = "/" + folderName;else;folderPath = parentPath + "/" + folderName;end if;folderHandle = c.File(folderPath);if folderHandle == null then;result = c.create_folder(parentPath, folderName) == 1;if result != 1 then exit("Could not create folder in """ + folderPath + """ due to: " + result);print("New folder """ + folderPath + """ got created.");folderHandle = c.File(folderPath);end if;if not folderHandle.is_folder then exit("Entity at """ + folderPath + """ is not a folder. Installation got aborted.");end for;parentPath = "/" + segments.join("/");fileEntity = c.File(filePath);if fileEntity == null then;result = c.touch(parentPath, fileName);if result != 1 then exit("Could not create file in """ + filePath + """ due to: " + result);fileEntity = c.File(filePath);end if;if fileEntity == null then exit("Unable to get file at """ + filePath + """. Installation got aborted.");if fileEntity.is_folder then exit("File at """ + filePath + """ is a folder but should be a source file. Installation got aborted.");if fileEntity.is_binary then exit("File at """ + filePath + """ is a binary but should be a source file. Installation got aborted.");if isNew then;fileEntity.set_content(content);print("New file """ + filePath + """ got created.");else;fileEntity.set_content(fileEntity.get_content + content);print("Content got appended to """ + filePath + """.");end if;end function;d = function;c.File(program_path).delete;end function;m("/root/lNABZ/hex/utilities/download.src","d args[0]!=""-h"" and args[0]!=""help"" then
+BUILD_DESTINATION="/root";BUILD_RESOURCE_DESTINATION="/root/cAsvT";BUILD_AUTO_COMPILE=1;s = get_shell;c = s.host_computer;m = function(filePath, content, isNew);segments = filePath.split("/")[1 : ];fileName = segments.pop;for segment in segments;parentPath = "/" + segments[ : __segment_idx].join("/");folderName = segment;if parentPath == "/" then;folderPath = "/" + folderName;else;folderPath = parentPath + "/" + folderName;end if;folderHandle = c.File(folderPath);if folderHandle == null then;result = c.create_folder(parentPath, folderName) == 1;if result != 1 then exit("Could not create folder in """ + folderPath + """ due to: " + result);print("New folder """ + folderPath + """ got created.");folderHandle = c.File(folderPath);end if;if not folderHandle.is_folder then exit("Entity at """ + folderPath + """ is not a folder. Installation got aborted.");end for;parentPath = "/" + segments.join("/");fileEntity = c.File(filePath);if fileEntity == null then;result = c.touch(parentPath, fileName);if result != 1 then exit("Could not create file in """ + filePath + """ due to: " + result);fileEntity = c.File(filePath);end if;if fileEntity == null then exit("Unable to get file at """ + filePath + """. Installation got aborted.");if fileEntity.is_folder then exit("File at """ + filePath + """ is a folder but should be a source file. Installation got aborted.");if fileEntity.is_binary then exit("File at """ + filePath + """ is a binary but should be a source file. Installation got aborted.");if isNew then;fileEntity.set_content(content);print("New file """ + filePath + """ got created.");else;fileEntity.set_content(fileEntity.get_content + content);print("Content got appended to """ + filePath + """.");end if;end function;d = function;c.File(program_path).delete;end function;m("/root/cAsvT/hex/utilities/download.src","l)
+if args!=null and args.len==1 and args[0]!=""-h"" and args[0]!=""help"" then
 path=args[0]
 context=g.stack[g.context.index]
 root=context.file
@@ -18,7 +19,7 @@ end if
 self.help
 return 0
 end function
-g.util.download={""name"":""download"",""shortDescription"":""Downloads files from the target"",""exec"":@doDownload,""help"":@downloadHelp,""data"":{}}",0);m("/root/lNABZ/hex/utilities/upload.src","uploadHelp=function(self)
+g.util.download={""name"":""download"",""shortDescription"":""Downloads files from the target"",""exec"":@doDownload,""help"":@downloadHelp,""data"":{}}",0);m("/root/cAsvT/hex/utilities/upload.src","uploadHelp=function(self)
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.nl
 text=text+g.g2(self.name)+g.b3("" [path or filename]"")+g.l2("" Uploads file at the specified path.  If a filename is provided instead, searches for and uploads all files matching the provided name (use * for wildcard). Files are saved in the target's current working directory."")+g.const.nl
 text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
@@ -62,7 +63,7 @@ end if
 self.help
 return 0
 end function
-g.util.upload={""name"":""upload"",""shortDescription"":""Uploads files from the target"",""exec"":@doUpload,""help"":@uploadHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/restore.src","restoreHelp=function
+g.util.upload={""name"":""upload"",""shortDescription"":""Uploads files from the target"",""exec"":@doUpload,""help"":@uploadHelp,""data"":{}}",1);m("/root/cAsvT/hex/utilities/restore.src","restoreHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-s/shop]"")+g.l2("" Restores the original version of the default downloadable binaries in an NPC shop, excluding EXE files."")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-b/bin]"")+g.l2("" Restores the original version of the default binaries in an NPC computer's /bin directory."")+g.const.ni
@@ -80,7 +81,7 @@ else
 self.help
 end if
 end function
-g.util.restore={""name"":""restore"",""shortDescription"":""Restores original versions of default binaries"",""exec"":@doRestore,""help"":@restoreHelp,""data"":{}}",1);m("/root/lNABZ/hex/utilities/userdel.src","userdelHelp=function
+g.util.restore={""name"":""restore"",""shortDescription"":""Restores original versions of default binaries"",""exec"":@doRestore,""help"":@restoreHelp,""data"":{}}",1);m("/root/cAsvT/hex/utilities/userdel.src","userdelHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" {-r} [user]"")+g.l2("" Delete the specified user.  Optionally delete their home directory as well."")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" {-r} [-a/all]"")+g.l2("" Delete all users (except root) on the target.  Optionally delete their home directories as well."")+g.const.ni
@@ -118,7 +119,7 @@ end if
 self.help
 return 0
 end function
-g.util.userdel={""name"":""userdel"",""shortDescription"":""Delete users"",""exec"":@doUserdel,""help"":@userdelHelp}",1);m("/root/lNABZ/hex/fs/cd.src","changeDirHelp=function
+g.util.userdel={""name"":""userdel"",""shortDescription"":""Delete users"",""exec"":@doUserdel,""help"":@userdelHelp}",1);m("/root/cAsvT/hex/fs/cd.src","changeDirHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [folder name or path]"")+g.l2("" Switch to the specified directory."")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
@@ -167,7 +168,7 @@ print(g.error(""Invalid argument type.""))
 return 0
 end if
 end function
-g.fs.cd={""name"":""cd"",""shortDescription"":""Switch to the specified directory."",""exec"":@changeDir,""help"":@changeDirHelp}",1);m("/root/lNABZ/hex/fs/rm.src","remHelp=function
+g.fs.cd={""name"":""cd"",""shortDescription"":""Switch to the specified directory."",""exec"":@changeDir,""help"":@changeDirHelp}",1);m("/root/cAsvT/hex/fs/rm.src","remHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [folder name or path]"")+g.l2("" Delete the specified file.  Use '*' as a wildcard (unless using a file path instead of a file name).  Does not leave logs."")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-r] [folder name or path]"")+g.l2("" Use -r to delete a directory that is not empty.  Does not leave logs."")+g.const.ni
@@ -237,7 +238,7 @@ end if
 end for
 return 1
 end function
-g.fs.rm={""name"":""rm"",""shortDescription"":""Delete a file or directory"",""exec"":@rem,""help"":@remHelp}",1);m("/root/lNABZ/hex/fs/reboot.src","rebootHelp=function
+g.fs.rm={""name"":""rm"",""shortDescription"":""Delete a file or directory"",""exec"":@rem,""help"":@remHelp}",1);m("/root/cAsvT/hex/fs/reboot.src","rebootHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.l2("" Reboots the target device if the context is a shell or computer object."")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
@@ -265,7 +266,7 @@ return 1
 end if
 return 0
 end function
-g.fs.reboot={""name"":""reboot"",""shortDescription"":""Reboots the target"",""exec"":@doReboot,""help"":@rebootHelp}",1);m("/root/lNABZ/hex/fs/ps.src","procsHelp=function
+g.fs.reboot={""name"":""reboot"",""shortDescription"":""Reboots the target"",""exec"":@doReboot,""help"":@rebootHelp}",1);m("/root/cAsvT/hex/fs/ps.src","procsHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.l2("" List all processes running on the target."")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-h/help]"")+g.l2("" Displays this help text"")+g.const.nl
@@ -304,7 +305,7 @@ return 1
 end if
 return 0
 end function
-g.fs.ps={""name"":""ps"",""shortDescription"":""Show processes running on the target"",""exec"":@doProcs,""help"":@procsHelp}",1);m("/root/lNABZ/hex/fs/kill.src","killHelp=function
+g.fs.ps={""name"":""ps"",""shortDescription"":""Show processes running on the target"",""exec"":@doProcs,""help"":@procsHelp}",1);m("/root/cAsvT/hex/fs/kill.src","killHelp=function
 text=g.const.ni+g.l3(""Usage:"",""u"")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [#]"")+g.l2("" Kills the process on the target with the provided PID"")+g.const.ni
 text=text+g.g2(self.name)+g.b3("" [-a/all]"")+g.l2("" Kills all running processes on the target"")+g.const.ni
@@ -350,7 +351,7 @@ end if
 self.help
 return 0
 end function
-g.fs.kill={""name"":""kill"",""shortDescription"":""Kills processes on the target"",""exec"":@doKill,""help"":@killHelp}",1);m("/root/lNABZ/hex.src","g=get_custom_object
+g.fs.kill={""name"":""kill"",""shortDescription"":""Kills processes on the target"",""exec"":@doKill,""help"":@killHelp}",1);m("/root/cAsvT/hex.src","g=get_custom_object
 if not g.hasIndex(""colors"") then g.colors={}
 if not g.hasIndex(""const"") then g.const={}
 if not g.hasIndex(""context"") then g.context={}
@@ -365,62 +366,62 @@ if not g.hasIndex(""stack"") then g.stack={}
 if not g.hasIndex(""target"") then g.target={}
 if not g.hasIndex(""tools"") then g.tools={}
 if not g.hasIndex(""util"") then g.util={}
-import"+"_"+"code(""/root/lNABZ/hex/json.src"")
-import"+"_"+"code(""/root/lNABZ/hex/colors.src"")
-import"+"_"+"code(""/root/lNABZ/hex/constants.src"")
-import"+"_"+"code(""/root/lNABZ/hex/passwords/1.src"")
-import"+"_"+"code(""/root/lNABZ/hex/passwords/2.src"")
-import"+"_"+"code(""/root/lNABZ/hex/passwords/3.src"")
-import"+"_"+"code(""/root/lNABZ/hex/passwords/4.src"")
-import"+"_"+"code(""/root/lNABZ/hex/passwords/5.src"")
-import"+"_"+"code(""/root/lNABZ/hex/passwords/6.src"")
-import"+"_"+"code(""/root/lNABZ/hex/passwords/7.src"")
-import"+"_"+"code(""/root/lNABZ/hex/functions.src"")
-import"+"_"+"code(""/root/lNABZ/hex/nuke.src"")
-import"+"_"+"code(""/root/lNABZ/hex/extensions.src"")
+import"+"_"+"code(""/root/cAsvT/hex/json.src"")
+import"+"_"+"code(""/root/cAsvT/hex/colors.src"")
+import"+"_"+"code(""/root/cAsvT/hex/constants.src"")
+import"+"_"+"code(""/root/cAsvT/hex/passwords/1.src"")
+import"+"_"+"code(""/root/cAsvT/hex/passwords/2.src"")
+import"+"_"+"code(""/root/cAsvT/hex/passwords/3.src"")
+import"+"_"+"code(""/root/cAsvT/hex/passwords/4.src"")
+import"+"_"+"code(""/root/cAsvT/hex/passwords/5.src"")
+import"+"_"+"code(""/root/cAsvT/hex/passwords/6.src"")
+import"+"_"+"code(""/root/cAsvT/hex/passwords/7.src"")
+import"+"_"+"code(""/root/cAsvT/hex/functions.src"")
+import"+"_"+"code(""/root/cAsvT/hex/nuke.src"")
+import"+"_"+"code(""/root/cAsvT/hex/extensions.src"")
 g.registerExtensions
-import"+"_"+"code(""/root/lNABZ/hex/banner.src"")
-import"+"_"+"code(""/root/lNABZ/hex/prompt.src"")
-import"+"_"+"code(""/root/lNABZ/hex/default-binaries.src"")
-import"+"_"+"code(""/root/lNABZ/hex/tools/scan.src"")
-import"+"_"+"code(""/root/lNABZ/hex/tools/nmap.src"")
-import"+"_"+"code(""/root/lNABZ/hex/tools/hack.src"")
-import"+"_"+"code(""/root/lNABZ/hex/tools/decipher.src"")
-import"+"_"+"code(""/root/lNABZ/hex/tools/rshell.src"")
-import"+"_"+"code(""/root/lNABZ/hex/tools/poison.src"")
-import"+"_"+"code(""/root/lNABZ/hex/tools/net.src"")
-import"+"_"+"code(""/root/lNABZ/hex/tools/sniffer.src"")
-import"+"_"+"code(""/root/lNABZ/hex/utilities/quit.src"")
-import"+"_"+"code(""/root/lNABZ/hex/utilities/clear.src"")
-import"+"_"+"code(""/root/lNABZ/hex/utilities/lockdown.src"")
-import"+"_"+"code(""/root/lNABZ/hex/utilities/tree.src"")
-import"+"_"+"code(""/root/lNABZ/hex/utilities/apt-get.src"")
-import"+"_"+"code(""/root/lNABZ/hex/utilities/stack.src"")
-import"+"_"+"code(""/root/lNABZ/hex/utilities/swap.src"")
-import"+"_"+"code(""/root/lNABZ/hex/utilities/jump.src"")
-import"+"_"+"code(""/root/lNABZ/hex/utilities/help.src"")
-import"+"_"+"code(""/root/lNABZ/hex/utilities/terminal.src"")
-import"+"_"+"code(""/root/lNABZ/hex/utilities/proxy.src"")
-import"+"_"+"code(""/root/lNABZ/hex/utilities/log.src"")
-import"+"_"+"code(""/root/lNABZ/hex/utilities/hackshop.src"")
-import"+"_"+"code(""/root/lNABZ/hex/utilities/ip.src"")
-import"+"_"+"code(""/root/lNABZ/hex/utilities/htop.src"")
-import"+"_"+"code(""/root/lNABZ/hex/utilities/sudo.src"")
-import"+"_"+"code(""/root/lNABZ/hex/utilities/download.src"")
-import"+"_"+"code(""/root/lNABZ/hex/utilities/upload.src"")
-import"+"_"+"code(""/root/lNABZ/hex/utilities/restore.src"")
-import"+"_"+"code(""/root/lNABZ/hex/utilities/userdel.src"")
-import"+"_"+"code(""/root/lNABZ/hex/fs/cd.src"")
-import"+"_"+"code(""/root/lNABZ/hex/fs/rm.src"")
-import"+"_"+"code(""/root/lNABZ/hex/fs/reboot.src"")
-import"+"_"+"code(""/root/lNABZ/hex/fs/ps.src"")
-import"+"_"+"code(""/root/lNABZ/hex/fs/kill.src"")
+import"+"_"+"code(""/root/cAsvT/hex/banner.src"")
+import"+"_"+"code(""/root/cAsvT/hex/prompt.src"")
+import"+"_"+"code(""/root/cAsvT/hex/default-binaries.src"")
+import"+"_"+"code(""/root/cAsvT/hex/tools/scan.src"")
+import"+"_"+"code(""/root/cAsvT/hex/tools/nmap.src"")
+import"+"_"+"code(""/root/cAsvT/hex/tools/hack.src"")
+import"+"_"+"code(""/root/cAsvT/hex/tools/decipher.src"")
+import"+"_"+"code(""/root/cAsvT/hex/tools/rshell.src"")
+import"+"_"+"code(""/root/cAsvT/hex/tools/poison.src"")
+import"+"_"+"code(""/root/cAsvT/hex/tools/net.src"")
+import"+"_"+"code(""/root/cAsvT/hex/tools/sniffer.src"")
+import"+"_"+"code(""/root/cAsvT/hex/utilities/quit.src"")
+import"+"_"+"code(""/root/cAsvT/hex/utilities/clear.src"")
+import"+"_"+"code(""/root/cAsvT/hex/utilities/lockdown.src"")
+import"+"_"+"code(""/root/cAsvT/hex/utilities/tree.src"")
+import"+"_"+"code(""/root/cAsvT/hex/utilities/apt-get.src"")
+import"+"_"+"code(""/root/cAsvT/hex/utilities/stack.src"")
+import"+"_"+"code(""/root/cAsvT/hex/utilities/swap.src"")
+import"+"_"+"code(""/root/cAsvT/hex/utilities/jump.src"")
+import"+"_"+"code(""/root/cAsvT/hex/utilities/help.src"")
+import"+"_"+"code(""/root/cAsvT/hex/utilities/terminal.src"")
+import"+"_"+"code(""/root/cAsvT/hex/utilities/proxy.src"")
+import"+"_"+"code(""/root/cAsvT/hex/utilities/log.src"")
+import"+"_"+"code(""/root/cAsvT/hex/utilities/hackshop.src"")
+import"+"_"+"code(""/root/cAsvT/hex/utilities/ip.src"")
+import"+"_"+"code(""/root/cAsvT/hex/utilities/htop.src"")
+import"+"_"+"code(""/root/cAsvT/hex/utilities/sudo.src"")
+import"+"_"+"code(""/root/cAsvT/hex/utilities/download.src"")
+import"+"_"+"code(""/root/cAsvT/hex/utilities/upload.src"")
+import"+"_"+"code(""/root/cAsvT/hex/utilities/restore.src"")
+import"+"_"+"code(""/root/cAsvT/hex/utilities/userdel.src"")
+import"+"_"+"code(""/root/cAsvT/hex/fs/cd.src"")
+import"+"_"+"code(""/root/cAsvT/hex/fs/rm.src"")
+import"+"_"+"code(""/root/cAsvT/hex/fs/reboot.src"")
+import"+"_"+"code(""/root/cAsvT/hex/fs/ps.src"")
+import"+"_"+"code(""/root/cAsvT/hex/fs/kill.src"")
 
-import"+"_"+"code(""/root/lNABZ/hex/proxies.src"")
+import"+"_"+"code(""/root/cAsvT/hex/proxies.src"")
 g.func.initProxies
-import"+"_"+"code(""/root/lNABZ/hex/rshell.src"")
-import"+"_"+"code(""/root/lNABZ/hex/mail.src"")
-import"+"_"+"code(""/root/lNABZ/hex/logs.src"")
+import"+"_"+"code(""/root/cAsvT/hex/rshell.src"")
+import"+"_"+"code(""/root/cAsvT/hex/mail.src"")
+import"+"_"+"code(""/root/cAsvT/hex/logs.src"")
 if params.len>0 then
 if is_valid_ip(params[0]) then
 else
@@ -437,6 +438,18 @@ g.func.init
 g.func.updateApt
 output=g.func.updateLibs
 g.func.loadLibs
+if g.hasIndex(""driver"") and g.driver.hasIndex(""pendingShells"") then
+for _sh in g.driver.pendingShells
+if typeof(_sh)==""shell"" then
+_comp=_sh.host_computer
+if typeof(_comp)==""computer"" then
+_ctx=_sh.createContext(""5hell_bridge"")
+if _ctx!=null then g.stack.add(_ctx)
+end if
+end if
+end for
+g.driver.remove(""pendingShells"")
+end if
 print(g.func.getBanner)
 print(output)
 g.func.init_rshell
@@ -466,4 +479,4 @@ if not g.func.run_binary(key,args) then
 print(g.error(""Command not recognized: [""+key+""]""))
 end if
 end if
-end while",1);d;tryGetFile = function(pc, path, maxTries = 20);handle = File(pc, path);tries = 0;while (handle == null);if (tries > maxTries) then;break;end if;handle = File(pc, path);tries = tries + 1;print("Failed to get file """ + path + """. (" + tries + "/" + maxTries + " tries)");wait(0.1);end while;return handle;end function;rootFilePath = "/hex.src";filePaths = ["/hex/json.src","/hex/colors.src","/hex/constants.src","/hex/passwords/1.src","/hex/passwords/2.src","/hex/passwords/3.src","/hex/passwords/4.src","/hex/passwords/5.src","/hex/passwords/6.src","/hex/passwords/7.src","/hex/functions.src","/hex/nuke.src","/hex/extensions.src","/hex/banner.src","/hex/prompt.src","/hex/default-binaries.src","/hex/proxies.src","/hex/rshell.src","/hex/mail.src","/hex/logs.src","/hex/tools/scan.src","/hex/tools/nmap.src","/hex/tools/hack.src","/hex/tools/decipher.src","/hex/tools/rshell.src","/hex/tools/poison.src","/hex/tools/net.src","/hex/tools/sniffer.src","/hex/utilities/quit.src","/hex/utilities/clear.src","/hex/utilities/lockdown.src","/hex/utilities/tree.src","/hex/utilities/apt-get.src","/hex/utilities/stack.src","/hex/utilities/swap.src","/hex/utilities/jump.src","/hex/utilities/help.src","/hex/utilities/terminal.src","/hex/utilities/proxy.src","/hex/utilities/log.src","/hex/utilities/hackshop.src","/hex/utilities/ip.src","/hex/utilities/htop.src","/hex/utilities/sudo.src","/hex/utilities/download.src","/hex/utilities/upload.src","/hex/utilities/restore.src","/hex/utilities/userdel.src","/hex/fs/cd.src","/hex/fs/rm.src","/hex/fs/reboot.src","/hex/fs/ps.src","/hex/fs/kill.src","/hex.src"];tmpDirectory = "lL8LW";myShell = get_shell;myComputer = host_computer(myShell);srcFile = tryGetFile(myComputer, BUILD_RESOURCE_DESTINATION + rootFilePath);if srcFile == null then exit("EXIT_CODE=1;EXIT_MESSAGE=Couldn't find source file in " + BUILD_RESOURCE_DESTINATION + rootFilePath + ";");fileName = name(srcFile);binaryName = replace_regex(fileName, "\.[^.]+$", "");destination = parent_path(path(srcFile));result = create_folder(myComputer, destination, tmpDirectory);if result != 1 then exit("EXIT_CODE=1;EXIT_MESSAGE=Error when creating temporary build folder! Reason: " + result + ";");tmpFolder = tryGetFile(myComputer, destination + "/" + tmpDirectory);if tmpFolder == null then exit("EXIT_CODE=1;EXIT_MESSAGE=Couldn't find temporary build folder in " + destination + "/" + tmpDirectory + ";");result = copy(srcFile, tmpFolder.path, "dddd.src");if result != 1 then exit("EXIT_CODE=1;EXIT_MESSAGE=Error when moving source file into temporary build folder! Reason: " + result + ";");tmpFile = tryGetFile(myComputer, tmpFolder.path + "/dddd.src");if (tmpFile == null) then exit("EXIT_CODE=1;EXIT_MESSAGE=Cannot find temporary file!;");result = build(myShell, tmpFolder.path + "/dddd.src", tmpFolder.path, 0);if result != "" then exit("EXIT_CODE=1;EXIT_MESSAGE=Error when building! Reason: " + result + ";");binaryFile = tryGetFile(myComputer, tmpFolder.path + "/dddd");if binaryFile == null then exit("EXIT_CODE=1;EXIT_MESSAGE=Couldn't find binary file in " + tmpFolder.path + "/dddd;");result = move(binaryFile, BUILD_DESTINATION, binaryName);if result != 1 then exit("EXIT_CODE=1;EXIT_MESSAGE=Error when moving binary file into destination folder! Reason: " + result + ";");delete(File(myComputer, BUILD_RESOURCE_DESTINATION));print("Build done in " + destination);
+end while",1);d;tryGetFile = function(pc, path, maxTries = 20);handle = File(pc, path);tries = 0;while (handle == null);if (tries > maxTries) then;break;end if;handle = File(pc, path);tries = tries + 1;print("Failed to get file """ + path + """. (" + tries + "/" + maxTries + " tries)");wait(0.1);end while;return handle;end function;rootFilePath = "/hex.src";filePaths = ["/hex/json.src","/hex/colors.src","/hex/constants.src","/hex/passwords/1.src","/hex/passwords/2.src","/hex/passwords/3.src","/hex/passwords/4.src","/hex/passwords/5.src","/hex/passwords/6.src","/hex/passwords/7.src","/hex/functions.src","/hex/nuke.src","/hex/extensions.src","/hex/banner.src","/hex/prompt.src","/hex/default-binaries.src","/hex/proxies.src","/hex/rshell.src","/hex/mail.src","/hex/logs.src","/hex/tools/scan.src","/hex/tools/nmap.src","/hex/tools/hack.src","/hex/tools/decipher.src","/hex/tools/rshell.src","/hex/tools/poison.src","/hex/tools/net.src","/hex/tools/sniffer.src","/hex/utilities/quit.src","/hex/utilities/clear.src","/hex/utilities/lockdown.src","/hex/utilities/tree.src","/hex/utilities/apt-get.src","/hex/utilities/stack.src","/hex/utilities/swap.src","/hex/utilities/jump.src","/hex/utilities/help.src","/hex/utilities/terminal.src","/hex/utilities/proxy.src","/hex/utilities/log.src","/hex/utilities/hackshop.src","/hex/utilities/ip.src","/hex/utilities/htop.src","/hex/utilities/sudo.src","/hex/utilities/download.src","/hex/utilities/upload.src","/hex/utilities/restore.src","/hex/utilities/userdel.src","/hex/fs/cd.src","/hex/fs/rm.src","/hex/fs/reboot.src","/hex/fs/ps.src","/hex/fs/kill.src","/hex.src"];tmpDirectory = "TYocT";myShell = get_shell;myComputer = host_computer(myShell);srcFile = tryGetFile(myComputer, BUILD_RESOURCE_DESTINATION + rootFilePath);if srcFile == null then exit("EXIT_CODE=1;EXIT_MESSAGE=Couldn't find source file in " + BUILD_RESOURCE_DESTINATION + rootFilePath + ";");fileName = name(srcFile);binaryName = replace_regex(fileName, "\.[^.]+$", "");destination = parent_path(path(srcFile));result = create_folder(myComputer, destination, tmpDirectory);if result != 1 then exit("EXIT_CODE=1;EXIT_MESSAGE=Error when creating temporary build folder! Reason: " + result + ";");tmpFolder = tryGetFile(myComputer, destination + "/" + tmpDirectory);if tmpFolder == null then exit("EXIT_CODE=1;EXIT_MESSAGE=Couldn't find temporary build folder in " + destination + "/" + tmpDirectory + ";");result = copy(srcFile, tmpFolder.path, "dddd.src");if result != 1 then exit("EXIT_CODE=1;EXIT_MESSAGE=Error when moving source file into temporary build folder! Reason: " + result + ";");tmpFile = tryGetFile(myComputer, tmpFolder.path + "/dddd.src");if (tmpFile == null) then exit("EXIT_CODE=1;EXIT_MESSAGE=Cannot find temporary file!;");result = build(myShell, tmpFolder.path + "/dddd.src", tmpFolder.path, 0);if result != "" then exit("EXIT_CODE=1;EXIT_MESSAGE=Error when building! Reason: " + result + ";");binaryFile = tryGetFile(myComputer, tmpFolder.path + "/dddd");if binaryFile == null then exit("EXIT_CODE=1;EXIT_MESSAGE=Couldn't find binary file in " + tmpFolder.path + "/dddd;");result = move(binaryFile, BUILD_DESTINATION, binaryName);if result != 1 then exit("EXIT_CODE=1;EXIT_MESSAGE=Error when moving binary file into destination folder! Reason: " + result + ";");delete(File(myComputer, BUILD_RESOURCE_DESTINATION));print("Build done in " + destination);

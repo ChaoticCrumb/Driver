@@ -98,13 +98,24 @@ cmdSessions = function(args)
             ip   = driverText("muted", "unknown", 0)
             if e.hasIndex("ip") and e["ip"] != "" then ip = driverText("text", e["ip"], 0)
 
+            // User / access-level badge — color matches prompt tier convention
+            userStr = "?"
+            if e.hasIndex("user") and e["user"] != "" then userStr = e["user"]
+            if userStr == "root" then
+                userBadge = driverBadge(userStr, "error")
+            else if userStr == "guest" then
+                userBadge = driverBadge(userStr, "muted")
+            else
+                userBadge = driverBadge(userStr, "accent")
+            end if
+
             valid = e.hasIndex("shell") and typeof(e["shell"]) == "shell"
-            badge = driverBadge("alive", "success")
-            if not valid then badge = driverBadge("stale", "error")
+            statusBadge = driverBadge("alive", "success")
+            if not valid then statusBadge = driverBadge("stale", "error")
 
             print "  " + driverText("border", "[") + driverText("accentBright", str(i)) +
                   driverText("border", "]") + "  " + driverText("accent", src) + "  " +
-                  ip + "  " + badge
+                  ip + "  " + userBadge + "  " + statusBadge
         end for
     end if
     print driverRule(74)

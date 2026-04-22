@@ -86,7 +86,7 @@ cmdHelp = function(args)
     helpItems = [
         ["install <tool>",          "install 5hell or hex"],
         ["status",                  "show tool install status"],
-        ["launch <tool>",           "launch an installed tool"],
+        ["launch <tool>",           "launch an installed tool (also supports `5hell` and `hex` aliases)"],
         ["target <ip> {port}",      "set active target (passed to both tools on launch)"],
         ["sessions",                "show acquired sessions from all tools"],
         ["probe <ip> {port}",       "port scan via 5hell"],
