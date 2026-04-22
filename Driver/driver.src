@@ -31,8 +31,7 @@ driver.palette = {
     "success":      "#FFD089FF",
     "warning":      "#FFC857FF",
     "error":        "#FF6B3DFF",
-    "shadow":       "#4D2600FF"
-}
+    "shadow":       "#4D2600FF"}
 
 driver.color = function(name)
     if driver.palette.hasIndex(name) then return driver.palette[name]
@@ -86,8 +85,7 @@ driver.splash = function()
         "   +#+    +:+ +#++:++#:      +#+     +#+     +:+ +#++:++#   +#++:++#:    ",
         "  +#+    +#+ +#+    +#+     +#+      +#+   +#+  +#+        +#+    +#+    ",
         " #+#    #+# #+#    #+#     #+#       #+#+#+#   #+#        #+#    #+#     ",
-        "#########  ###    ### ###########     ###     ########## ###    ###   "
-    ]
+        "#########  ###    ### ###########     ###     ########## ###    ###   "]
     artTones = ["accentBright", "ember1", "ember2", "ember3", "ember4", "ember5", "ember6"]
     print(driver.rule(74, "shadow"), 1)
     for i in range(0, artLines.len - 1)
@@ -182,14 +180,14 @@ TOOLS = [
         "name":  "5hell",
         "ver":   "v4.3.6",
         "desc":  "Modular hacktool by Plu70",
-        "check": "/root/5hell"
+        "check": "/root/5hell",
     },
     {
         "id":    "hex",
         "name":  "HEX",
         "ver":   "",
         "desc":  "Penetration testing framework",
-        "check": "/root/hex"
+        "check": "/root/hex",
     }
 ]
 
