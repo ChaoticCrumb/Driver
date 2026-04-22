@@ -1,0 +1,32 @@
+// Prints usage and flag descriptions for the quit utility.
+// @return {none}
+quitHelp = function()
+    text = g.const.ni + g.l3("Usage:","u") + g.const.ni
+    text = text + g.g2(self.name) + g.l2(" Clears the screen and exits the program.") + g.const.nl
+    text = text + g.g2(self.name) + g.b3(" [-h/help]") + g.l2(" Displays this help text") + g.const.nl
+
+    print(text)
+end function
+
+// Clears the screen and exits HEX with a goodbye message.
+// @param {list<string>|null} args - Pass ["-h"] or ["help"] to show usage instead.
+// @return {none}
+quit = function(args)
+    if args != null and args.len > 0 then
+        if args[0] == "help" or args[0] == "-h" then
+            self.help
+            return
+        end if
+    end if
+    clear_screen
+    g.command = "exit"
+    exit(g.const.nl*2 + g.s2("[HEX] Goodbye!!") + g.const.nl)
+end function
+
+g.util.quit = {
+    "name": "quit",
+    "shortDescription": "Clears the screen and exits the program.",
+    "exec": @quit,
+    "help": @quitHelp,
+    "data": {}
+}

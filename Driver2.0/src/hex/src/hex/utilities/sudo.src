@@ -1,0 +1,120 @@
+// Prints usage and flag descriptions for the sudo utility.
+// @return {none}
+sudoHelp = function(self)
+    text = g.const.ni + g.l3("Usage:","u") + g.const.ni
+    text = text + g.g2(self.name) + g.l2(" Attempts to get a root shell by brute-forcing the password and adds it to the stack if successful") + g.const.ni
+    text = text + g.g2(self.name) + g.b3(" [password]") + g.l2(" Gets a root shell with the supplied password and adds it to the stack") + g.const.ni
+    text = text + g.g2(self.name) + g.b3(" [username] [password]") + g.l2(" Gets a shell with the supplied user credentials and adds it to the stack") + g.const.ni
+    text = text + g.g2(self.name) + g.b3(" [-h/help]") + g.l2(" Displays this help text") + g.const.nl
+
+    print(text)
+end function
+
+// Obtains a shell on the current context using credentials.  With no args, brute-forces
+// root using the rainbow table.  With one arg (a password), connects as root.  With two
+// args (user + password), connects as that user.  When called from a non-home context,
+// re-executes remotely.
+// @param {list<string>|null} args - Optional: null, [password], or [username, password].
+// @return {number} - 1 on success, 0 on failure.
+doSudo = function(args = null)
+    argsStr = g.func.serialize(args, 1).replace("char(10)", "").replace("char(13)", "").replace("\\n", "").replace("\n", "")
+
+    if g.context.index != "0" and not g.util.sudo.data.hasIndex("remoted") then
+        src = "g = get_custom_object" + char(10) + "g.registerExtensions" + char(10) + "g.util.sudo.data.remoted = 1" + char(10) + "g.util.sudo.exec(" + argsStr + ")"
+        
+        g.func.run(src)
+    else
+        if g.util.sudo.data.hasIndex("remoted") then g.util.sudo.data.remove("remoted")
+        if args == null or args == [] then
+            for idx in g.rt.indexes
+                result = get_shell("root", g.rt[idx])
+
+                if result == null then continue
+
+                if typeof(result) == "string" then
+                    print g.error(result)
+                    return 0
+                end if
+
+                if typeof(result) == "shell" then
+                    print g.const.indent + g.g1("Root shell obtained with password " + g.rt[idx])
+
+                    source = g.stack[g.context.index].source
+                    ctx = result.createContext(source)
+                    g.stack.add(ctx)
+                    return 1
+                else
+                    print g.error("An unknown error occurred.")
+                    return 0
+                end if
+            end for
+        else if args.len == 1 then
+            if args[0] == "-h" or args[0] == "help" then
+                self.help
+                return 1
+            else
+                password = args[0]
+                result = get_shell("root", password)
+
+                if result == null then
+                    print g.error("Invalid password.")
+                    return 0
+                end if
+
+                if typeof(result) == "string" then
+                    print g.error(result)
+                    return 0
+                end if
+
+                if typeof(result) == "shell" then
+                    source = g.stack[g.context.index].source
+                    ctx = result.createContext(source)
+                    g.stack.add(ctx)
+                    return 1
+                else
+                    print g.error("An unknown error occurred.")
+                    return 0
+                end if
+            end if
+        else if args.len == 2 then
+            username = args[0]
+            password = args[1]
+            result = get_shell(username, password)
+
+            if result == null then
+                print g.error("Invalid credentials.")
+                return 0
+            end if
+
+            if typeof(result) == "string" then
+                print g.error(result)
+                return 0
+            end if
+
+            if typeof(result) == "shell" then
+                source = g.stack[g.context.index].source
+                ctx = result.createContext(source)
+                g.stack.add(ctx, 1)
+                return 1
+            else
+                print g.error("An unknown error occurred.")
+                return 0
+            end if
+        else
+            self.help
+            return 0
+        end if
+    end if
+end function
+
+// Fill out the parts of this template, and then place it in the a folder called 'tools' in the same directory as the main hex binary file.
+// You can leave it as src code (name it with a .src file extension), otherwise hex will attempt to load it as a binary file that has been built with the
+// 'allow import' flag set.
+
+g.util.sudo = {
+    "name": "sudo",
+    "shortDescription": "Get root or user shell",
+    "exec": @doSudo,
+    "help": @sudoHelp,
+    "data": {}
+}

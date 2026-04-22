@@ -1,0 +1,204 @@
+// Prints usage and flag descriptions for the stack utility.
+// @return {none}
+stackHelp = function(self)
+    text = g.const.ni + g.l3("Usage:","u") + g.const.ni
+    text = text + g.g2(self.name) + g.l2(" Prints a list of all contexts currently stored in the stack") + g.const.ni
+    text = text + g.g2(self.name) + g.b3(" [-c/clear]") + g.l2(" Clears all items from the stack except for the home computer context (whichever computer originally ran hex)") + g.const.ni
+    text = text + g.g2(self.name) + g.b3(" [-h/help]") + g.l2(" Displays this help text") + g.const.nl
+
+    print(text)
+end function
+
+// Prints all contexts in the stack grouped by public IP, highlighting the active context
+// and the selected proxy.  Accepts [-c/clear] to wipe non-home, non-proxy contexts.
+// @param {list<string>|null} args - Optional flags: ["-c"] clears the stack, ["-h"] shows help.
+// @return {none}
+doStack = function(args = null)
+    if args != null and args.len > 0 then
+        if args[0] == "help" or args[0] == "-h" then
+            self.help
+            return
+        else if args[0] == "clear" or args[0] == "-c" then
+            g.stack.clear
+            g.command = "stack"
+            return
+        else
+            self.help
+            return
+        end if
+    end if
+
+    keys = g.stack.indexes
+
+    items = {}
+
+    for i in keys
+        if not i.to_int isa number then continue
+
+        context = g.stack[i]
+        context.key = i
+
+        if not items.hasIndex(context.public) then items[context.public] = []
+
+        items[context.public].push(context)
+    end for
+
+    indices = items.indexes
+    indices.sort
+
+    for i in indices
+        items[i].sort("local")
+    end for
+
+    output = g.const.nl + g.const.indent + "Legend:" + g.const.tab*2 + g.b4("Current Context") + g.const.tab*2 + g.g2("Selected Proxy") + g.const.nl
+
+    output = output + g.const.nl + g.const.indent
+    
+    output = output + g.s3("<size=115%><voffset=0.5em>Index<pos=120>Public IP<pos=320>Local IP<pos=500>Type<pos=610>Source<pos=730>User</voffset></size>") + g.const.nl
+
+    context = g.stack[g.context.index]
+
+    for i in indices
+        for item in items[i]
+            line = g.const.indent
+
+            line = line + item.key + "<pos=120>" + item.public + "<pos=320>" + item.local + "<pos=500>" + item.type + "<pos=610>" + item.source + "<pos=730>" + item.user
+
+            if item.key == g.context.index then
+                output = output + g.b4(line) + g.const.nl
+            else if g.hasIndex("proxy") and g.proxy == item.key then
+                output = output + g.g2(line) + g.const.nl
+            else
+                output = output + g.l1(line) + g.const.nl
+            end if
+        end for
+    end for
+
+    print output
+    return
+end function
+
+// Adds a context to the stack, or updates an existing entry for the same host and type
+// if the new item provides a higher access level.  When force is 1, always inserts a new
+// entry without deduplication.  Also upserts lower-tier contexts (computer for shell, file
+// for computer) when the new item improves on what is already stored.
+// @param {g.Target} item - The context object to add.
+// @param {number} force - If 1, always insert a new entry (default: 0).
+// @return {string} - The stack key at which the item was stored.
+g.stack.add = function(item, force = 0)
+    updateItem = function(i, item)
+        g.stack[i][item.type] = item[item.type]
+        g.stack[i].user = item.getUser
+        g.stack[i].source = item.source
+
+        if item.type == "shell" then
+            g.stack[i].computer = item.computer
+            g.stack[i].file = item.file
+        else if item.type == "computer" then
+            g.stack[i].file = item.file
+        end if
+    end function
+
+    // Only add the lower-tier items if we already have one, and if the one we already have is of a lower access level than this new one would give us.
+    updateExtras = function
+        if item.source.indexOf("proxy") == null and item.source != "rs server" then
+            if item.type == "shell" then
+                add = 0
+
+                for i in g.stack.indexes
+                    if typeof(i.to_int) != "number" then continue
+
+                    if g.stack[i].public == item.public and g.stack[i].local == item.local and g.stack[i].type == "computer" then
+                        if g.stack[i].user == "guest" or item.user == "root" then
+                            add = 1
+                        end if
+                    end if
+                end for
+
+                if add then g.stack.add(item.computer.createContext(item.source))
+            else if item.type == "computer" then
+                add = 0
+
+                for i in g.stack.indexes
+                    if typeof(i.to_int) != "number" then continue
+
+                    if g.stack[i].public == item.public and g.stack[i].local == item.local and g.stack[i].type == "file" then
+                        if g.stack[i].user == "guest" or item.user == "root" then
+                            add = 1
+                        end if
+                    end if
+                end for
+
+                if add then
+                    temp = item.file.createContext(item.source)
+                    temp.local = item.local
+                    temp.public = item.public
+
+                    g.stack.add(temp)
+                end if
+            end if
+        end if
+    end function
+
+    keys = g.stack.indexes
+
+    max = keys.max
+
+    if max < 0 then
+        key = str(0)
+    else
+        key = str(max + 1)
+    end if
+
+    if not force then
+        for i in keys
+            if not typeof(i.to_int) == "number" then continue
+
+            if g.stack[i].public == item.public and g.stack[i].local == item.local and g.stack[i].type == item.type then
+                if g.stack[i].user == "guest" or item.getUser == "root" then
+                    if g.stack[i].user != "root" then
+                        updateItem(i, item)
+                    end if
+                end if
+
+                updateExtras
+
+                return i
+            end if
+        end for
+    end if
+
+    g.stack[key] = item
+
+    updateExtras
+
+    return key
+end function
+
+// Removes all non-home, non-proxy contexts from the stack, resetting the active context
+// index to "0" if needed.
+// @return {none}
+g.stack.clear = function
+    keys = g.stack.indexes
+
+    for i in keys
+        if i.to_int isa number and i.to_int > 0 then
+            if not g.stack[i].source.is_match("proxy") and g.stack[i].source != "rs server" then
+                if g.context.index == i then g.context.index = "0"
+                g.stack.remove(i)
+            end if
+        end if
+    end for
+end function
+
+// Fill out the parts of this template, and then place it in the a folder called 'tools' in the same directory as the main hex binary file.
+// You can leave it as src code (name it with a .src file extension), otherwise hex will attempt to load it as a binary file that has been built with the
+// 'allow import' flag set.
+
+g.util.stack = {
+    "name": "stack",
+    "shortDescription": "Prints a list of all contexts currently in the stack.",
+    "exec": @doStack,
+    "help": @stackHelp,
+    "data": {}
+}

@@ -1,0 +1,386 @@
+// Driver 2.0 — bridge.cmd.drvr.src
+// Cross-tool state bridge: harvest and seed sessions, libs, and config between 5hell and HEX.
+// Imported before launch.cmd.drvr and hackcmds.cmd.drvr so its functions are available to both.
+//
+// 5hell state layout (root get_custom_object):
+//   g.mys0..N  — shell objects exported by _export_metax_et_al
+//   g.myx0..N  — MetaxploitLib per depth
+//   g.myc0..N  — cryptoLib per depth
+//   g.myi0..N  — "pubip : localip" string per depth
+//   g.stack_pool — current nested launch depth
+//   g.macros   — macro map
+//   g.HOME     — @home server config
+//   g.h5.*     — 5hell command functions (namespaced by Driver)
+//
+// HEX state layout (root get_custom_object):
+//   g.stack["0"]..["N"] — g.Target context objects
+//   g.stack["0"]        — home context (always present after HEX init)
+//   g.database          — vulnerability scan results
+//   g.context.index     — active context at time of exit
+//   g.Target            — prototype map (exists only after HEX has run)
+
+// ---------------------------------------------------------------------------
+// driverHarvest5hell
+// Called after s.launch("/root/5hell") returns.
+// Reads shell exports from root g and writes them into g.driver.bridge.shells,
+// replacing any prior "5hell" entries (dedup by source rebuild).
+// ---------------------------------------------------------------------------
+
+driverHarvest5hell = function()
+    driverDebug("driverHarvest5hell: start")
+
+    depth = 0
+    if g.hasIndex("stack_pool") and typeof(g.stack_pool) == "number" then
+        depth = g.stack_pool
+    end if
+    driverDebug("driverHarvest5hell: stack_pool=" + depth)
+
+    newShells = []
+    i = 0
+    while i <= depth
+        sk = "mys" + i
+        xk = "myx" + i
+        ck = "myc" + i
+        ik = "myi" + i
+
+        if g.hasIndex(sk) and typeof(g[sk]) == "shell" then
+            sh = g[sk]
+            entry = {
+                "shell":  sh,
+                "metax":  null,
+                "crypto": null,
+                "source": "5hell",
+                "depth":  i,
+                "ip":     ""
+            }
+            if g.hasIndex(xk) then entry["metax"]  = g[xk]
+            if g.hasIndex(ck) then entry["crypto"] = g[ck]
+            if g.hasIndex(ik) and typeof(g[ik]) == "string" then entry["ip"] = g[ik]
+
+            // Validate the shell object is still reachable
+            comp = sh.host_computer
+            if typeof(comp) == "computer" then
+                newShells.push(entry)
+                driverDebug("driverHarvest5hell: captured depth=" + i + " ip=" + entry["ip"])
+            else
+                driverDebug("driverHarvest5hell: shell at depth=" + i + " is stale, skipping")
+            end if
+        end if
+        i = i + 1
+    end while
+
+    // Rebuild bridge.shells: keep non-5hell entries, replace 5hell slice
+    merged = []
+    for e in g.driver.bridge.shells
+        if e.hasIndex("source") and e["source"] != "5hell" then merged.push(e)
+    end for
+    g.driver.bridge.shells = merged + newShells
+
+    // Harvest macros and HOME config
+    if g.hasIndex("macros") and typeof(g.macros) == "map" then
+        g.driver.bridge.macros = g.macros
+        driverDebug("driverHarvest5hell: macros=" + g.macros.indexes.len)
+    end if
+    if g.hasIndex("HOME") and typeof(g.HOME) == "map" then
+        g.driver.bridge.home = g.HOME
+        driverDebug("driverHarvest5hell: HOME.ip=" + g.HOME["ip"])
+    end if
+
+    driverDebug("driverHarvest5hell: done. bridge.shells=" + g.driver.bridge.shells.len)
+end function
+
+// ---------------------------------------------------------------------------
+// driverSeedState5hell
+// Writes bridge data into g (root custom object) so that when 5hell starts
+// it finds pre-populated macros and any HEX-acquired shells as mys* exports.
+// Does NOT generate launch params. Call before any 5hell launch.
+// ---------------------------------------------------------------------------
+
+driverSeedState5hell = function()
+    driverDebug("driverSeedState5hell: start")
+
+    // Restore macros
+    if typeof(g.driver.bridge.macros) == "map" and g.driver.bridge.macros.indexes.len > 0 then
+        if not g.hasIndex("macros") then g.macros = {}
+        for k in g.driver.bridge.macros.indexes
+            if not g.macros.hasIndex(k) then g.macros[k] = g.driver.bridge.macros[k]
+        end for
+        driverDebug("driverSeedState5hell: restored macros=" + g.driver.bridge.macros.indexes.len)
+    end if
+
+    // Inject HEX-sourced shells as 5hell mys* exports, starting after existing depth
+    startIdx = 0
+    if g.hasIndex("stack_pool") and typeof(g.stack_pool) == "number" then
+        startIdx = g.stack_pool + 1
+    end if
+
+    nextIdx = startIdx
+    for entry in g.driver.bridge.shells
+        if not entry.hasIndex("source") then continue
+        if entry["source"] != "hex" then continue
+        if not entry.hasIndex("shell") or typeof(entry["shell"]) != "shell" then continue
+
+        comp = entry["shell"].host_computer
+        if typeof(comp) != "computer" then
+            driverDebug("driverSeedState5hell: stale HEX shell, skip")
+            continue
+        end if
+
+        g["mys" + nextIdx] = entry["shell"]
+        if entry.hasIndex("metax") and entry["metax"] != null then
+            g["myx" + nextIdx] = entry["metax"]
+        end if
+        if entry.hasIndex("crypto") and entry["crypto"] != null then
+            g["myc" + nextIdx] = entry["crypto"]
+        end if
+        g["myi" + nextIdx] = comp.public_ip + " : " + comp.local_ip
+        driverDebug("driverSeedState5hell: seeded HEX shell as mys" + nextIdx)
+        nextIdx = nextIdx + 1
+    end for
+
+    driverDebug("driverSeedState5hell: done")
+end function
+
+// ---------------------------------------------------------------------------
+// driverSeed5hell
+// Full pre-launch seed for interactive 5hell launch.
+// Seeds state, then returns launch params string (e.g. "target 1.2.3.4 80")
+// or "" if no target is configured.
+// ---------------------------------------------------------------------------
+
+driverSeed5hell = function()
+    driverSeedState5hell
+    params = ""
+    if g.driver.target != null and g.driver.target.hasIndex("ip") then
+        t = g.driver.target
+        if typeof(t["ip"]) == "string" and t["ip"] != "" then
+            params = "target " + t["ip"]
+            if t.hasIndex("port") and t["port"] != null then
+                params = params + " " + str(t["port"])
+            end if
+            driverDebug("driverSeed5hell: launch params=[" + params + "]")
+        end if
+    end if
+    return params
+end function
+
+// ---------------------------------------------------------------------------
+// driverHarvestHex
+// Called after s.launch("/root/hex") returns.
+// Reads g.stack (skipping index "0" home context) and writes acquired sessions
+// into g.driver.bridge.shells, replacing any prior "hex" entries.
+// ---------------------------------------------------------------------------
+
+driverHarvestHex = function()
+    driverDebug("driverHarvestHex: start")
+
+    if not g.hasIndex("stack") then
+        driverDebug("driverHarvestHex: g.stack not found")
+        return
+    end if
+
+    newShells = []
+    for idx in g.stack.indexes
+        // Skip non-numeric keys — g.stack has "add" and "clear" method entries
+        if typeof(idx.to_int) != "number" then continue
+        // Skip index "0" — that is always the home context
+        if idx == "0" then continue
+
+        ctx = g.stack[idx]
+        if ctx == null then continue
+        if not ctx.hasIndex("shell") then continue
+        if typeof(ctx.shell) != "shell" then continue
+
+        sh = ctx.shell
+        comp = sh.host_computer
+        if typeof(comp) != "computer" then
+            driverDebug("driverHarvestHex: stale shell at idx=" + idx + ", skip")
+            continue
+        end if
+
+        entry = {
+            "shell":  sh,
+            "metax":  null,
+            "crypto": null,
+            "source": "hex",
+            "index":  idx,
+            "ip":     comp.public_ip + " : " + comp.local_ip
+        }
+        if ctx.hasIndex("metax")  then entry["metax"]  = ctx.metax
+        if ctx.hasIndex("crypto") then entry["crypto"] = ctx.crypto
+
+        newShells.push(entry)
+        driverDebug("driverHarvestHex: captured idx=" + idx + " ip=" + entry["ip"])
+    end for
+
+    merged = []
+    for e in g.driver.bridge.shells
+        if e.hasIndex("source") and e["source"] != "hex" then merged.push(e)
+    end for
+    g.driver.bridge.shells = merged + newShells
+
+    driverDebug("driverHarvestHex: done. bridge.shells=" + g.driver.bridge.shells.len)
+end function
+
+// ---------------------------------------------------------------------------
+// driverSeedHex
+// Full pre-launch seed for interactive HEX launch.
+// Injects 5hell-sourced shells into g.stack (only if g.Target exists, meaning
+// HEX has run before and its prototype is available). Sets g.command to execute
+// a scan/hack command immediately if g.driver.target is set. Returns launch
+// params string (for IP/port passthrough) or "".
+// ---------------------------------------------------------------------------
+
+driverSeedHex = function()
+    driverDebug("driverSeedHex: start")
+
+    // Ensure g.stack exists
+    if not g.hasIndex("stack") then g.stack = {}
+
+    // Inject 5hell shells into g.stack only if g.Target prototype exists
+    // Use g.stack.add() — not direct assignment — so HEX's dedup and index logic runs correctly
+    if g.hasIndex("Target") and g.stack.hasIndex("add") then
+        for entry in g.driver.bridge.shells
+            if not entry.hasIndex("source") then continue
+            if entry["source"] != "5hell" then continue
+            if not entry.hasIndex("shell") or typeof(entry["shell"]) != "shell" then continue
+
+            sh = entry["shell"]
+            comp = sh.host_computer
+            if typeof(comp) != "computer" then
+                driverDebug("driverSeedHex: stale 5hell shell, skip")
+                continue
+            end if
+
+            ctx = sh.createContext("5hell_bridge")
+            g.stack.add(ctx)
+            driverDebug("driverSeedHex: added 5hell shell via g.stack.add")
+        end for
+    else
+        driverDebug("driverSeedHex: g.Target or g.stack.add not found. Skipping stack injection.")
+    end if
+
+    // Target passthrough via g.command (HEX's own loop-redirect mechanism)
+    if g.driver.target != null and g.driver.target.hasIndex("ip") then
+        t = g.driver.target
+        if typeof(t["ip"]) == "string" and t["ip"] != "" then
+            hexCmd = "scan " + t["ip"]
+            if t.hasIndex("port") and t["port"] != null then
+                hexCmd = hexCmd + " " + str(t["port"])
+            end if
+            g.command = hexCmd
+            driverDebug("driverSeedHex: set g.command=[" + hexCmd + "]")
+        end if
+    end if
+
+    driverDebug("driverSeedHex: done")
+    return ""
+end function
+
+// ---------------------------------------------------------------------------
+// driverSyncDatabaseFromDisk
+// Reads ~/rkit/database.csv and merges entries into g.database (HEX format).
+// Assumes CSV format: libName,version,address,value,resultType (one per line).
+// Does not overwrite existing g.database entries.
+// Safe to call before launching HEX; does not modify database.csv on disk.
+// ---------------------------------------------------------------------------
+
+driverSyncDatabaseFromDisk = function()
+    driverDebug("driverSyncDatabaseFromDisk: start")
+
+    csvFile = c.File("/root/rkit/database.csv")
+    if csvFile == null then
+        driverDebug("driverSyncDatabaseFromDisk: no database.csv found")
+        return
+    end if
+
+    if not csvFile.has_permission("r") then
+        driverDebug("driverSyncDatabaseFromDisk: no read permission")
+        return
+    end if
+
+    content = csvFile.get_content
+    if content == null or content == "" then return
+
+    if not g.hasIndex("database") then g.database = {}
+
+    loaded = 0
+    for line in content.split(char(10))
+        line = line.trim
+        if line == "" or line[:1] == "#" then continue
+        parts = line.split(",")
+        if parts.len < 5 then continue
+
+        libName = parts[0].trim
+        ver     = parts[1].trim
+        addr    = parts[2].trim
+        val     = parts[3].trim
+        rtype   = parts[4].trim
+
+        if not g.database.hasIndex(libName) then g.database[libName] = {}
+        if not g.database[libName].hasIndex(ver) then g.database[libName][ver] = {}
+        if not g.database[libName][ver].hasIndex(addr) then g.database[libName][ver][addr] = {}
+        if not g.database[libName][ver][addr].hasIndex(val) then
+            g.database[libName][ver][addr][val] = rtype
+            loaded = loaded + 1
+        end if
+    end for
+
+    driverDebug("driverSyncDatabaseFromDisk: merged " + loaded + " new entries")
+end function
+
+// ---------------------------------------------------------------------------
+// driverWriteDatabaseToDisk
+// Writes g.database back to ~/rkit/database.csv in the same CSV format that
+// driverSyncDatabaseFromDisk reads.  Creates the file if it doesn't exist.
+// Called after driverHarvestHex so any new scan results persist for 5hell.
+// ---------------------------------------------------------------------------
+
+driverWriteDatabaseToDisk = function()
+    driverDebug("driverWriteDatabaseToDisk: start")
+
+    if not g.hasIndex("database") or typeof(g.database) != "map" then
+        driverDebug("driverWriteDatabaseToDisk: g.database missing or empty, skip")
+        return
+    end if
+
+    lines = []
+    for libName in g.database.indexes
+        verMap = g.database[libName]
+        if typeof(verMap) != "map" then continue
+        for ver in verMap.indexes
+            addrMap = verMap[ver]
+            if typeof(addrMap) != "map" then continue
+            for addr in addrMap.indexes
+                valMap = addrMap[addr]
+                if typeof(valMap) != "map" then continue
+                for val in valMap.indexes
+                    rtype = valMap[val]
+                    lines.push(libName + "," + ver + "," + addr + "," + val + "," + rtype)
+                end for
+            end for
+        end for
+    end for
+
+    if lines.len == 0 then
+        driverDebug("driverWriteDatabaseToDisk: no entries to write")
+        return
+    end if
+
+    ensureDir("/root/rkit")
+
+    csvFile = c.File("/root/rkit/database.csv")
+    if csvFile == null then
+        result = c.create_folder("/root/rkit", "database.csv")
+        driverDebug("driverWriteDatabaseToDisk: create_folder result=" + str(result))
+        csvFile = c.File("/root/rkit/database.csv")
+    end if
+
+    if csvFile == null then
+        driverDebug("driverWriteDatabaseToDisk: could not create file")
+        return
+    end if
+
+    csvFile.set_content(lines.join(char(10)))
+    driverDebug("driverWriteDatabaseToDisk: wrote " + lines.len + " entries")
+end function

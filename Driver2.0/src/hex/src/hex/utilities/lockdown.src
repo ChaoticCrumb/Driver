@@ -1,0 +1,131 @@
+// Prints usage and flag descriptions for the lockdown utility.
+// @return {none}
+lockdownHelp = function(self)
+    text = g.const.ni + g.l3("Usage:","u") + g.const.ni
+    text = text + g.g2(self.name) + g.l2(" Secures the system by changing permissions on all files and folders to u-rwx, g-rwx, o-rwx. If this is your home system, it leaves the ability to run terminal, sudo, mail, map, chat, settings, and manual. Also deletes all files named Mail.txt, Bank.txt, and passwd.") + g.const.ni
+    text = text + g.g2(self.name) + g.b3(" [-h/help]") + g.l2(" Displays this help text") + g.const.nl
+
+    print(text)
+end function
+
+// Entry point for the lockdown utility.  Reads the file and computer objects from the
+// current context and delegates to g.func.lockdown to apply filesystem restrictions.
+// @param {list<string>|null} args - Optional list; pass ["-h"] or ["help"] to show help.
+// @return {number} - 1 if the lockdown succeeded, 0 otherwise.
+lockdown = function(args = null)
+    if args != null and args.len > 0 then
+        if args[0] == "help" or args[0] == "-h" then
+            self.help
+            return 1
+        end if
+    end if
+
+    idx = g.context.index
+
+    file = g.stack[idx].file
+    comp = g.stack[idx].computer
+
+    if g.func.lockdown(file, comp) then
+        print(g.const.ni + g.g2("System locked down."))
+        return 1
+    else
+        print(g.const.ni + g.error("Failed to lock down system."))
+        return 0
+    end if
+end function
+
+// Secures a filesystem by removing writable guest folders, deleting sensitive files
+// (passwd, Bank.txt, Mail.txt, .Trash), and applying u-rwx/g-rwx/o-rwx permissions
+// recursively from the root.  On a home computer (detected by an active Xorg process),
+// restores execute permissions for essential applications such as Terminal and Mail.
+// @param {file} file - Any file or folder on the target filesystem (used to reach the root).
+// @param {computer} comp - The computer object for the target system, or null.
+// @param {number} silent - If 1, suppresses per-file deletion messages.
+// @return {number} - 1 on success.
+g.func.lockdown = function(file, comp, silent = 0)
+    setHomePerms = function(obj)
+        result = obj.chmod("g+x")
+        if result != "" then print(g.error(result))
+    end function
+
+    walk = function(file)
+        excludes = ["sudo","Terminal","Terminal.exe","Mail","Mail.exe","Map","Map.exe","Chat","Chat.exe","Settings.exe","Manual","Manual.exe","autoexec"]
+
+        for item in file.get_files
+            if excludes.indexOf(item.name) != null then setHomePerms(item)
+        end for
+
+        for folder in file.get_folders
+            walk(folder)
+        end for
+    end function
+
+    del = function(files)
+        for file in files
+            if not silent then print(g.const.indent + g.o1("Deleting file: " + file.path))
+            g.func.silent_delete(file)
+        end for
+    end function
+
+    clean = function(files)
+        for file in files
+            if file.is_binary then continue
+            if not silent then print(g.const.indent + g.o1("Cleaning file: " + file.path))
+            file.set_content("")
+        end for
+    end function
+
+    home = 0
+
+    if comp != null then
+        procs = comp.show_procs.split(char(10))[1:]
+
+        for proc in procs
+            name = proc.split(" ")[4]
+            if name == "Xorg" then
+                home = 1
+                break
+            end if
+        end for
+    end if
+
+    if home then print(g.const.indent + g.b3("Home computer detected...") + g.const.nl)
+
+    root = file.getRootFolder
+
+    del(g.func.find(root, "guest", "fw"))
+
+    if home then
+        del(g.func.find(root, "passwd", "t"))
+
+        del(g.func.find(root, "Bank.txt", "tw"))
+
+        del(g.func.find(root, "Mail.txt", "tw"))
+    else
+        clean(g.func.find(root, "passwd", "t"))
+
+        clean(g.func.find(root, "Bank.txt", "tw"))
+
+        clean(g.func.find(root, "Mail.txt", "tw"))
+    end if
+
+    del(g.func.find(root, ".Trash", "fw"))
+
+    root.chmod("u-rwx", 1)
+    root.chmod("g-rwx", 1)
+    root.chmod("o-rwx", 1)
+    root.set_owner("root", 1)
+    root.set_group("root", 1)
+
+    if home then walk(root)
+
+    return 1
+end function
+
+g.util.lockdown = {
+    "name": "lockdown",
+    "shortDescription": "Secures the filesystem on the current context's device.",
+    "exec": @lockdown,
+    "help": @lockdownHelp,
+    "data": {}
+}

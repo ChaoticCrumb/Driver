@@ -1,0 +1,116 @@
+// Driver 2.0 — launch.cmd.src
+// Provides: launch <tool>, help
+// Registered into the global command map via registerCommand.
+
+// --- Command: launch ---
+// Launches an installed tool via shell.launch.
+// Records a session entry in g.driver.sessions for future harness expansion.
+
+cmdLaunch = function(args)
+    if args == null then args = []
+    driverDebug("cmdLaunch: args=" + str(args))
+    if args.len == 0 then
+        print(driverMsg("error", "usage: launch <5hell|hex>"))
+        return
+    end if
+
+    id = args[0].lower
+    driverDebug("cmdLaunch: id=" + id)
+    path = ""
+    if id == "5hell" then path = "/root/5hell"
+    if id == "hex"   then path = "/root/hex"
+    driverDebug("cmdLaunch: resolved path=" + path)
+
+    if path == "" then
+        print(driverMsg("error", "unknown tool '" + id + "'. available: 5hell, hex"))
+        return
+    end if
+
+    if not isInstalled(path) then
+        print(driverMsg("error", id + " is not installed. run: install " + id))
+        return
+    end if
+
+    print(driverMsg("info", "launching " + id + "..."))
+    print("")
+
+    sessionId = id + "_" + str(floor(time * 1000))
+    driverDebug("cmdLaunch: sessionId=" + sessionId)
+    g.driver.sessions[sessionId] = {
+        "tool":      id,
+        "status":    "running",
+        "startedAt": time,
+        "endedAt":   null,
+        "result":    null,
+        "error":     null
+    }
+
+    launchParams = ""
+
+    if id == "5hell" then
+        launchParams = driverSeed5hell
+        driverDebug("cmdLaunch: 5hell launchParams=[" + launchParams + "]")
+        s.launch(path, launchParams)
+        driverHarvest5hell
+        driverDebug("cmdLaunch: 5hell harvest complete. bridge.shells=" + g.driver.bridge.shells.len)
+    end if
+
+    if id == "hex" then
+        driverSyncDatabaseFromDisk
+        launchParams = driverSeedHex
+        driverDebug("cmdLaunch: hex launchParams=[" + launchParams + "]")
+        s.launch(path, launchParams)
+        driverHarvestHex
+        driverSyncDatabaseFromDisk
+        driverWriteDatabaseToDisk
+        driverDebug("cmdLaunch: hex harvest complete. bridge.shells=" + g.driver.bridge.shells.len)
+    end if
+
+    driverDebug("cmdLaunch: s.launch returned")
+    g.driver.sessions[sessionId]["status"]  = "done"
+    g.driver.sessions[sessionId]["endedAt"] = time
+    driverDebug("cmdLaunch: session closed")
+
+    print("")
+    print(driverMsg("success", id + " exited."))
+end function
+
+// --- Command: help ---
+
+cmdHelp = function(args)
+    if args == null then args = []
+    driverDebug("cmdHelp called")
+    print("")
+    print(driverHeader("commands"))
+    print(driverRule(74))
+    helpItems = [
+        ["install <tool>",          "install 5hell or hex"],
+        ["status",                  "show tool install status"],
+        ["launch <tool>",           "launch an installed tool"],
+        ["target <ip> {port}",      "set active target (passed to both tools on launch)"],
+        ["sessions",                "show acquired sessions from all tools"],
+        ["probe <ip> {port}",       "port scan via 5hell"],
+        ["db <-r|-l|-m> <args>",    "exploit databaser via 5hell"],
+        ["ssh <user@pass> <ip>",    "SSH connect via 5hell"],
+        ["zap <addr> <vuln>",       "single exploit via 5hell"],
+        ["meta <link|scan> <args>", "metaLib management via 5hell"],
+        ["rsi {flags}",             "reverse shell interface via 5hell"],
+        ["scan <ip> {port}",        "find exploitable addresses via HEX"],
+        ["hack <ip> {port}",        "exploit and stack session via HEX"],
+        ["help",                    "show this help"],
+        ["quit / exit",             "exit driver"]
+    ]
+    for item in helpItems
+        print("  " + driverText("accent", item[0]) +
+              driverText("muted", "  ::  ", 0) +
+              driverText("text", item[1], 0))
+    end for
+    print(driverRule(74))
+    print("")
+    driverDebug("cmdHelp done")
+end function
+
+// --- Register ---
+
+registerCommand("launch", @cmdLaunch)
+registerCommand("help",   @cmdHelp)

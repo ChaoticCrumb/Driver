@@ -1,0 +1,3764 @@
+// Sphinx Hacking Interface v 3.2 by Plu70
+
+//Define Globals
+sphinx_version = "3.3.9"
+malp_version = "1.6.6"
+if DEBUG then print("<size=75%>loading 5phinx.5pk v "+sphinx_version+" for 5hell v 4.3.6...(155.924)")
+
+NUM_SPLOITS = function()
+  num = globals.XPLOITS.len
+  if not num then num = 0
+  return num
+end function
+
+update_path = function(p=null)
+  if not p then p = current_path
+  globals.currentPath = p
+  print "<size=75%>Updating current path to: "+globals.currentPath
+  return cd(globals.currentPath)
+end function
+//
+// overrides
+_exit = @exit
+globals.exit = function(msg=0)
+  get_custom_object.return_value = msg
+  _exit(msg)
+end function
+//
+_print = @print
+globals.print = function(msg, mode=0, color=0,outfile=0) 
+// -- mode: 0=default, 1=clear_screen, 2=dont_print
+// -- color: 0;default, 1;error, 2;warning, otherwise supply a color code
+  // --colors defined in 5hell.src 
+  // --override at runtime with kore --override [colorDefinition] [new_colorCode]
+  // ----eg: kore --override colorDefault <#FFFFFF>
+  // --or place the line(s) in do.rc 
+// outfile: redirect output to provided output file path
+  if color == 0 then color = colorDefault
+  if color == 1 then color = colorError
+  if color == 2 then color = colorWarning
+  // --otherwise supply a color code for color
+  if mode == 0 then mode = globals.SILENT
+  if typeof(@msg) == "string" then 
+    msg = globals.wrap_text(msg,color)
+  else 
+    msg = color+@msg+CT
+  end if 
+  if globals.spoolpath then 
+    log = globals.get_file(spoolpath)
+    ifdbg = ""
+    //if DEBUG then ifdbg = char(10)+"- - - "+time+" - - - "// hahaha, this would be spam hell
+    if typeof(log) == "file" and log.has_permission("w") and log.has_permission("r") then 
+      if msg.len + log.get_content.len < 159000 then 
+        log.set_content(log.get_content+ifdbg+char(10)+msg) 
+      else 
+        f = log.name.split("\.")
+        n = f[0]
+        s = f[1]
+        if s.len == 3 then s = s+"1" else s = s[0:3] + str(s[-1].to_int + 1)
+        nsp = n+"."+s
+        lpp = log.parent.path
+        localmachine.touch(lpp,nsp)
+        if lpp == "/" then lpp = ""
+        newspool = globals.get_file(lpp+"/"+nsp)
+        globals.spoolpath = newspool.path
+        newspool.set_content(msg)
+        print("print: the log has reached the maximum size;"+char(10)+"-- new log file created:"+char(10)+"--: "+newspool.path,0,2)
+        print command.perms("o-rwx",newspool.path) 
+      end if
+    else 
+      _print(colorError+"<size=75%>print: cannot spool: file path or permission error")
+    end if
+  end if
+  if typeof(outfile) == "string" or typeof(outfile) == "file" then outfile = globals.get_file(outfile)
+  if typeof(outfile) == "file" and not outfile.is_binary and outfile.has_permission("w") then outfile.set_content(msg)
+  if mode < 2 then return _print( msg, mode )
+  return null
+end function
+//
+_user_input = @user_input 
+globals.user_input = function(msg="",ispass=0,anykey=0,log=0)
+  if typeof(@msg) == "string" then 
+    msg = wrap_text(msg,colorDefault)
+  else 
+    msg = colorDefault+msg+CT
+  end if
+  if EXPERIMENTAL then return _user_input(msg,ispass,anykey,log)  else return _user_input(msg,ispass,anykey)
+end function
+
+globals.wrap_text = function(msg,clr)
+  msg = msg.split(char(10))
+  mc = []
+  for m in msg
+    mc.push(clr+m)
+  end for
+  return mc.join(char(10))
+end function
+// end overrides
+//
+globals._cascade = function()
+  //if get_custom_object.hasIndex("return_value") and get_custom_object.return_value == "#!#CASCADE#!#" then exit "#!#CASCADE#!#" else return 0
+  return 0
+end function
+
+Kérberos = function( sl )
+  if typeof(@sl) == "function" then print colorRed+"</b>Kérberos: prevented rogue function execution" else return @sl 
+end function
+
+// no longer used, use the daemon manager instead
+list_daemons = function()
+  dl = command.grep("-f","^5hell.d$","/")
+  if typeof(dl) == "file" then 
+    if dl.has_permission("r") then 
+      dlc = dl.get_content 
+      if dlc.len < 5 then return "daemons: no daemons running"
+      return dlc
+    else 
+      return "daemons: 5hell.d is read protected!"
+    end if
+  else 
+    return "daemons: 5hell.d not found, no daemons running"
+  end if
+end function
+
+hot_swap_libs = function() 
+    return globals.super_import
+end function
+
+globals.is_home = function()
+  for p in localmachine.show_procs.split(char(10))
+    if p.split(" ")[4] == "Xorg" then return true
+  end for
+  return false
+end function
+
+globals.get_file = function(input_string)
+	if DEBUG then print("debug: in_get_file: "+@input_string)
+	if typeof(@input_string) == "file" then return input_string //    input_string.path might be probelmatic, lets return a file as expected
+	if typeof(@input_string) != "string" then return 0
+	if input_string == "" or input_string == " " or not input_string then return 0
+	if DEBUG then print "debug: get_file: processing string: "+input_string
+	if input_string.split("/")[0] == "" then
+		file = localmachine.File(input_string)
+	else
+		file = localmachine.File(currentPath+"/"+input_string)
+  	if not file then file = localmachine.File(currentPath+input_string)
+	end if
+	if DEBUG then
+		if file then print("File: ["+file.path+"]") else print("File: [not found]")
+	end if
+  if DEBUG then print "get_file: returning..."
+  if file then return file else return 0
+end function
+
+// import_lib and super import! to replace hot swap libs. this version makes sure to use the highest version
+globals.import_lib = function(grep, filepath) // String: lib_name, File: search_path
+  if filepath.is_binary and not filepath.is_folder then
+    v = "?.?.?"
+    lib = null 
+    fp = filepath.path
+    lib = include_lib(fp)
+    if typeof(lib) == grep then  
+      if globals.hasIndex("MetaxploitLib") and typeof(globals.MetaxploitLib.lib) == "MetaxploitLib" then 
+        v = globals.MetaxploitLib.lib.load(fp).version 
+      else 
+        if typeof(lib) == "MetaxploitLib" then v = lib.load(fp)
+        if typeof(v) == "MetaLib" then v = v.version
+      end if
+      if DEBUG then print "found: "+lib+" v "+v
+      if globals.hasIndex(grep) then 
+        t = [v,globals[grep]["version"]]
+        t.sort
+        if v == t[-1] then globals[grep] = {"version":v,"lib":lib,"path":fp}
+      else 
+        globals[grep] = {"version":v,"lib":lib,"path":fp}
+      end if
+    end if
+  else
+    if filepath.is_folder then
+      folders = filepath.get_folders
+      files = folders + filepath.get_files
+      for file in files
+        import_lib(grep, file)
+      end for
+    end if
+  end if
+end function
+globals.super_import = function(import_this=0) // String: name; import requested lib instead of defaults
+	start_here = get_shell.host_computer.File("/") 
+	//
+  if import_this then 
+    lib_types = [import_this]
+  else 
+  	lib_types = [ "MetaxploitLib", "cryptoLib", "aptclientLib" ]
+  end if
+	for lib_type in lib_types
+		if DEBUG then print("Searching for: "+lib_type)
+		import_lib( lib_type, start_here ) 
+	end for
+	//
+	for lib in lib_types
+		if not globals.hasIndex(lib) then 
+			globals[lib] = {"version":"-.-.-","lib":null,"path":"null"}
+			print "WARNING: "+lib+" not found!"
+		end if
+		if DEBUG then print globals[lib]["version"]+" v "+globals[lib]["lib"]+" path: "+globals[lib]["path"]
+	end for
+	//
+	globals.metaxploit = globals.MetaxploitLib.lib 
+  globals.backup_meta = globals.metaxploit
+	globals.metaLibVersion = globals.MetaxploitLib.version
+  globals.meta_path = globals.MetaxploitLib.path //  legacy, deprecated
+	//
+	globals.crypto = globals.cryptoLib.lib 
+	globals.cryptoLibVersion = globals.cryptoLib.version
+	//
+	globals.apt_get = globals.aptclientLib.lib 
+  return globals[lib_types[0]]
+end function
+// end super import
+
+
+globals.stack_pool = function(opt=null)
+  if get_custom_object.hasIndex("stack_pool") then
+    if DEBUG then print "debug: stack: turning up"
+    if opt == "up" then get_custom_object.stack_pool = get_custom_object.stack_pool + 1
+    if DEBUG then print "debug: stack: turning down"
+    if opt == "down" then get_custom_object.stack_pool = get_custom_object.stack_pool - 1
+  else 
+    if DEBUG then print "debug: stack: on"
+    get_custom_object.stack_pool = 0
+  end if 
+  return get_custom_object.stack_pool
+end function
+
+globals._import_tables = function()
+  if DEBUG then print "debug: in import tables:"
+  if globals.dict_a.len > 1 then return "cerebrum: already loaded"
+  t = globals.get_file(get_custom_object.HOME["tp"])
+  if DEBUG then print "-- t: "+t
+  if not t then 
+    g = ""
+    g = command.grep("-a","^tables$")
+    for tab in g
+      if typeof(tab) == "file" and tab.parent.name != ".Trash" then 
+        t = tab  
+      end if
+    end for
+    if DEBUG then 
+      print "-- t: "+typeof(t)+": "+t;
+      if typeof(t) == "file" then print "-- "+t.path+char(10)+"-- "+t.get_folders
+    end if
+    if not t or typeof(t) != "file" or not t.is_folder then return "grep: tables not found"
+    for f in t.get_folders 
+      if DEBUG then print "-- f: "+f.name
+      if f.name == "tp" or f.name == "t5" then // tp takes priority
+        if DEBUG then print "-- found: "+f.path
+        return command.cerebrum("-i",f.path)
+      end if
+    end for
+  else 
+    return command.cerebrum("-i",t)
+  end if
+  return "import_tables: cannot find tp or t5"
+end function
+
+globals._startup_resource_configuration  = function()
+  p = null
+  r = globals.get_file(home_dir+"/Config/do.rc") // look for do.rc in ~/Config, first
+  if not r then 
+    r = command.tree("/","rkit","1","N") // look for do.rc in rkit if it isn't in /Config
+    if typeof(r) != "file" or not r.is_folder then return "tree: rkit folder not found"
+    for f in r.get_files 
+      if f.name == "do.rc" then p = f 
+    end for
+  else 
+    p = r
+  end if 
+  if not p then return "tree: do.rc not found" else print colorGold+"<size=50%>kore:"+colorWhite+" <u>do.rc</u> detected..."
+  reenc = 0
+  if p.is_binary then 
+    if globals.crypto and globals.crypto.is_encrypted(p.path) == 1 then 
+      reenc = command.cob("get","HOME.dorc_key")
+      if not reenc then reenc = user_input("rc: do.rc is encrypted"+char(10)+"decryption_key (<<b>enter</b>>=abort):> ") 
+      if reenc.trim == "" then return "aborting..."
+      print command.file("-d",p.path,reenc)
+    end if
+    if p.is_binary then return "rc: cannot open binary file"
+  end if
+  if not p.has_permission("r") then return "rc: do.rc is read protected"
+  print "<size=75%>-- reading contents..."
+  c = p.get_content.split(char(10))
+  if reenc then print en_de_crypt_files( [p],"<size=75%>-- ","encrypt",reenc ) //command.file("-e",p.path,reenc)
+  print "<size=75%>-- beginning resource configuration..."
+  //if DEBUG then print "rc: passing to do: "+char(10)+colorCyan+c
+  command.do("1",c)
+  // for line in c
+  //   if line.len > 0 and line[0] != "#" then command.shell(line+" | return")
+  // end for
+  return 0
+end function
+
+// ec_files: list of file objects
+en_de_crypt_files = function(ec_files,indnt="-- ",act=0,pw=0)
+				if globals.DEBUG then print "debug: ec_files: "+ec_files
+				for fl in ec_files
+					if not fl.is_folder then 
+						c = false
+						pth = fl.path
+						print indnt+act+"ing </color>"+pth
+						if act == colorMagenta+"</b>encrypt" then // can't @crypto[act] -- Sadge :[
+							c = globals.crypto.encrypt(pth,pw)
+						else
+							c = globals.crypto.decrypt(pth,pw)
+						end if
+						if c then print indnt+"</b>"+act+"ion<b> successful" else print indnt+"</b>"+act+"ion"+colorWarning+" failed!"+char(10)+indnt+colorWarning+"</b>"+c 
+					else 
+						en_de_crypt_files(fl.get_folders,indnt,act,pw)
+					end if
+				end for
+			end function
+
+mail_user_list = function(ip_address, port)
+  if not crypto then return 0
+  return crypto.smtp_user_list( ip_address , port )
+end function
+
+// export metaxploit, crypto, shell to the custom object: called on startup
+// merge into session object when session objects become a thing
+globals._export_metax_et_al = function() 
+  s = globals.stack_pool
+  g = get_custom_object
+  m = globals.metaxploit 
+  c = globals.crypto
+  sh = globals.shell
+  ip = sh.host_computer.public_ip+" : "+sh.host_computer.local_ip
+  g["myi"+s] = ip
+  g["myx"+s] = m 
+  g["myc"+s] = c
+  g["mys"+s] = sh
+  return {"s":s,"m":m,"c":c,"sh":sh,"ip":ip}
+end function
+
+globals.is_restricted = function(obj)
+  switch(typeof(@obj))
+    case("shell",1)
+    case("pshell",1)
+    case("ftpshell",1)
+    case("computer",1)
+    case("pcompuer",1)
+    case("ftpComputer",1)
+    case("file",1)
+    case("pfile",1)
+    case("ftpFile",1)
+    case("aptclientLib",1)
+    case("blockchainLib",1)
+    case("coin",1)
+    case("ctfEvent",1)
+    case("cryptoLib",1)
+    case("debugLibrary",1)
+    case("function",1)
+    case("MetaLib",1)
+    case("MetaMail",1)
+    case("MetaxploitLib",1)
+    case("NetSession",1)
+    case("null",1)
+    case("number",1)
+    case("port",1)
+    case("router",1)
+    case("prouter",1)
+    case("service",1)
+    case("SmartAppliance",1)
+    case("subwallet",1)
+    case("TrafficNet",1)
+    case("wallet",1)
+    case("list",0)
+    case("map",0)
+    case("string",0)
+  return default(0)
+end function
+
+globals._ez_clip = function( in_prompt )
+  for e in in_prompt 
+    if DEBUG then print("z: "+@e)
+      // reprocess: unpack single quote chunk, process, repackage
+    if typeof(@e) != "string" then continue
+    if e.split(" ").len > 1 then 
+        in_prompt[in_prompt.indexOf(@e)] = _ez_clip(@e.split(" ")).join(" ")
+        continue
+    end if
+    // done reprocessing
+    // connecting dots
+    if DEBUG then print("p: "+@e)
+    e_indx = in_prompt.indexOf(@e) 
+    //if @e == "@STOP" then in_prompt[e_indx] = @globals.SAFEWORD
+    if @e == "@a" then in_prompt[e_indx] = @globals.CLIP["a"]
+    if @e == "@b" then in_prompt[e_indx] = @globals.CLIP["b"]
+    if @e == "@c" then in_prompt[e_indx] = @globals.CLIP["c"]
+    if @e == "@home" then 
+      command.cob("validate")
+      in_prompt[e_indx] = @get_custom_object.HOME.ip
+    end if
+    if @e == "@tbuf" then in_prompt[e_indx] = @globals.T_BUF.join(char(10))
+    if @e == "@t" then in_prompt[e_indx] = @globals.targetIP 
+    if @e == "@p" then in_prompt[e_indx] = @str(globals.targetPort)
+    if @e == "@r" then // moar ats! moarats! moar rats!... wait... no, no more rats
+      if in_prompt.hasIndex(e_indx+1) and typeof(in_prompt[e_indx+1]) == "string" then 
+        ind = in_prompt[e_indx+1]
+        if ind == "-m" then ind = 0
+        tsh = command.rsi("-r",ind)
+        if typeof(tsh) != "shell" then
+          print tsh
+          tsh = 0
+        end if
+        in_prompt[e_indx+1] = tsh
+        in_prompt.remove(e_indx)
+      else 
+        print globals.colorWarning+"<size=75%></b>ezclip: rsi: invalid index"
+      end if
+    end if
+    if @e == "@o" then
+      if in_prompt.hasIndex(e_indx+1) then//and typeof(in_prompt[e_indx+1]) == "string" and get_custom_object.hasIndex(in_prompt[e_indx+1]) then 
+          get = command.cob("get",in_prompt[e_indx+1])
+          if get != "cob: key not found" then
+            in_prompt[e_indx+1] = command.cob("get",in_prompt[e_indx+1])
+            in_prompt.remove(e_indx)
+          end if
+      else 
+          print globals.colorWarning+"<size=75%></b>ez_clip: cob: key not found"
+      end if
+    end if
+    if @e == "@B" then 
+      b_err = globals.colorWarning+"@BUFFER: invalid selection"
+      if in_prompt.hasIndex(e_indx+1) then 
+        if DEBUG then print "e_indx: "+e_indx
+        if in_prompt[e_indx+1] == "-m" then 
+          if BUFFER.len == 0 then
+            print(globals.colorOrange+"\nBuffer empty. ")
+            continue
+          end if
+          print("\nExpanding... ")
+          print(colorWhite+"__________________________________")
+          i = 0
+          if DEBUG then print("checking buffer integrity...")
+          for b in globals.BUFFER 
+            if typeof(@b) == "file" and not p_exe(@b,"name") then
+              globals.BUFFER.remove(globals.BUFFER.indexOf(b))
+              print("[<size=65%>malp: null file removed. skipping...</size>]")
+              continue
+            end if
+            /////////////////// BEGIN_BUFFER //////////////////////////////////////////////////
+            if typeof(@b) == "function" then
+              print(colorOrange+"["+i+"]</b>BUFFERED: " + "["+checkUser(@b) +":"+ typeof(@b)+"]")
+            else
+              print(colorOrange+"["+i+"]</b>BUFFERED: " + "["+checkUser(b) +":"+ typeof(b)+"]")
+            end if
+            if typeof(@b) == "file" then print(b.path+char(10)+b.permissions+" "+b.owner+" "+b.group+" "+b.size+" b["+b.is_binary+"] "+b.name)
+            if typeof(@b) == "computer" then print(format_columns(b.show_procs+char(10)+b.public_ip+char(10)+b.local_ip))
+            if typeof(@b) == "shell" or typeof(@b) == "ftpshell" then print(format_columns(b.host_computer.show_procs+char(10)+b.host_computer.public_ip+char(10)+b.host_computer.local_ip))
+            if typeof(@b) == "string" or typeof(@b) == "list" or typeof(@b) == "map" then print( "elements: "+b.len )
+            i = i + 1
+          end for
+          print(colorWhite+"__________________________________")
+          get = user_input("select an object:> ").to_int
+          if typeof(get) != "number" then print b_err
+          if get >= 0 and get < globals.BUFFER.len then 
+              in_prompt[e_indx+1] = @globals.BUFFER[get]
+              in_prompt.remove(e_indx) 
+              if DEBUG then print "post menu in_prompt "+in_prompt   
+          else    
+              print b_err
+          end if
+        else
+          if typeof(in_prompt[e_indx+1]) == "string" then 
+            if globals.BUFFER.hasIndex(in_prompt[e_indx+1].to_int) then 
+                in_prompt[e_indx+1] = @globals.BUFFER[in_prompt[e_indx+1].to_int]
+                in_prompt.remove(e_indx)
+                if DEBUG then print "post non menu in_prompt"
+            else 
+                print b_err
+            end if
+          end if
+        end if
+      end if
+    end if
+    // dots connected
+    // process escapes
+    // hi clover, if you see this, feel free to make it magic
+    if @e == "\@STOP" then in_prompt[e_indx] = "@STOP"
+    if @e == "\@a" then in_prompt[e_indx] = "@a"
+    if @e == "\@b" then in_prompt[e_indx] = "@b"
+    if @e == "\@c" then in_prompt[e_indx] = "@c"
+    if @e == "\""" then in_prompt[e_indx] = """"
+    if @e == "\@home" then in_prompt[e_indx] = "@home"
+    if @e == "\@tbuf" then in_prompt[e_indx] = "@tbuf"
+    if @e == "\@t" then in_prompt[e_indx] = "@t"
+    if @e == "\@p" then in_prompt[e_indx] = "@p"
+    if @e == "\@o" then in_prompt[e_indx] = "@o"
+    if @e == "\@B" then in_prompt[e_indx] = "@B"
+    if @e == "\@r" then in_prompt[e_indx] = "@r"
+    //if @e == "\@pipe" then in_prompt[e_indx] = "@pipe"
+    if DEBUG then print("b: "+ in_prompt[e_indx])
+    // escapes processed
+  end for
+  if DEBUG then print "ezclip: returning: "+in_prompt
+  return in_prompt
+end function
+
+globals.sus = function(a,b,c,d) // expects libname v version
+  print colorWhite+"Sussing..."
+	db = null
+	db = command.tree( "/", "database.csv", "1", "n" )
+	if typeof(db) != "file" then return "sus: database.csv not found"
+	dat = db.get_content.split(char(10))
+	while true
+    if DEBUG then print "debug: calling rnip"
+		ip = command.rnip("1")
+		rtr = get_router(ip)
+		if not rtr then continue
+		query = "kernel_router.so v "+rtr.kernel_version
+    if DEBUG then print "debug: query: "+ query
+		if dat.indexOf(query) >= 0 then return ip
+	end while
+  print "sus: failed! try again"
+	return 0
+end function
+
+globals.file_sus = function (object, final) // object:object, string:final, returns string:object or 0
+  if typeof(object) != file or typeof(final) != "string" then return 0
+    while object.name != "/"
+      object = object.parent
+    end while
+    for folder in object
+      if typeof(final) == "file" then continue
+      for file in object 
+        if file.name == final then final = file
+        if folder.name == final then final = file 
+      end for 
+    end for
+    if typeof(final) != "file" then return 0
+  return final
+end function 
+
+dump_memory = function()
+  suff = range(0,9)
+  suff.shuffle
+  m_name = "memdump"+suff.pop+suff.pop+suff.pop+".mx"
+  localmachine.touch(currentPath, m_name)
+  memdump = globals.get_file(m_name)
+  if memdump then
+    buf = []
+    if globals.targetIP then buf.push(globals.targetIP+": "+globals.targetPort+char(10))
+    if MEMORY then buf.push(MEMORY.join( char(10) ) + char(10) )
+    if globals.XPLOITS then buf.push(globals.XPLOITS.join( char(10) ) + char(10) )
+    if meta_scan then buf.push(meta_scan.join( char(10) ) + char(10) )
+    if PORT_MAP then buf.push(display_portmap(1))
+    if globals.CLIP["a"].len then buf.push( globals.CLIP["a"] )
+    if globals.CLIP["b"].len then buf.push( globals.CLIP["b"] )
+    if globals.CLIP["c"].len then buf.push( globals.CLIP["c"] )
+    buf.push(T_BUF)
+    for l in get_custom_object 
+      if l.key != "dictionary" then buf.push(l)
+    end for
+    m = command.macro("list")
+    buf.push(m)
+    memdump.set_content( buf.join( char(10) ) )
+    print("Memory dumped to: "+memdump.path)
+    return 1
+  else
+    print("Error: memory dump failed. Check write permissions.")
+    return "404"
+  end if
+end function
+
+string.noparse = function(self)
+  split_line = self.split(char(10))
+  buf = []
+  for line in split_line 
+    buf.push("<noparse>"+line)
+  end for 
+  return buf.join(char(10))
+end function
+
+// slightly less garbage code than before follows, somehow works
+globals.decompiler = function(o)
+    act = "Decompiling"
+    if typeof(@o) == "function" then act = "Evaluating"
+    if typeof(@o) == "custom_object" then act = "Expanding"
+    print "<mark=yellow>"+act+": "+typeof(@o)
+
+    if typeof(@o) == "custom_object" then 
+        ort = []
+        for thing in o 
+            ort.push( thing.key+" : "+thing.value )
+            if typeof(thing) == "map" or typeof(thing) == "list" then 
+                for sub_thing in thing
+                    ort.push(sub_thing)
+                end for
+            end if
+        end for 
+        print "code: returning list"
+        return ort
+    end if
+
+    if typeof(@o) == "function" then
+        return p_exe(@o)
+    end if
+
+    if typeof(o) == "number" then return "code: cannot decompile a number"
+    if typeof(o) == "string" then 
+        fe = []
+        for letter in o.values 
+            fe.push(letter.code)
+        end for 
+        return fe.join(", ")
+    end if 
+
+    if o.indexOf("__isa") >= 0 or o.hasIndex("__isa") or o.hasIndex("classID") or typeof(o) == "pshell" or typeof(o) == "pfile" or typeof(o) == "pcomputer" or typeof(o) == "shell" or typeof(o) == "file" or typeof(o) == "computer" or typeof(o) == "ftpshell" then 
+        if DEBUG then print "code: isa confirmed; verifying indexes"
+        crit = "code: "+colorError+" critical error: "+colorWhite+"the object has been invalidated"
+        methods = o.indexes
+        if o.hasIndex("__isa") then methods = o.__isa.indexes
+        print methods
+        if methods.len < 2 then return crit
+        if not p_validate(o) then return crit
+        if typeof(o) == "MetaLib" then print colorWhite+o.lib_name+CT+" v "+colorWhite+o.version 
+        if typeof(o) == "file" then print colorWhite+o.path
+        for ind in methods
+            print(ind+": "+o[ind])
+        end for
+        print("- - - - - - - - - - - - - - - -"+char(10))
+        i = 0
+        for m in methods
+            print("["+colorWhite+ i +CT+"] [ "+colorLightBlue+ m +CT+" ]")
+            i = i + 1
+        end for 
+        i = i - 1
+        if DEBUG then print("debug: i: "+i+" methods: "+methods.len)
+        print(colorWhite+"<u>======================</u>"+CT)
+        pr = user_input("Select a function to execute (q=quit):> ").to_int
+        if pr == "q" or pr == "" or pr == " " then return "aborting..." 
+        rcv = null
+        if pr >= 0 and pr <= i then rcv = globals.p_exe( o , methods[pr]) else return 0
+        if DEBUG then print "rcv: "+rcv
+        if rcv then 
+            globals.BUFFER.push(rcv)
+            print( "result: "+typeof(rcv) + " sent to BUFFER." ) 
+        end if
+        return rcv
+    end if  
+
+    if typeof(o) == "list" then 
+        cw = colorWhite+"</b>"
+        cb = colorLightBlue+"</b>"
+        for d in o
+        print "<u>"+cw+"ndx"+cb+":"+cw+"element"
+        print "["+cw+o.indexOf(d)+CT+"]"+cw+":"+CT+"["+d+"]"
+        end for
+        print cb+"["+cw+"1</color>] enumerate "+cb+"["+cw+"2</color>] to cob "+cb+"["+cw+"3</color>] to buffer"+char(10)
+        print cb+"["+cw+"a</color>] to clipa "+cb+"["+cw+"b</color>] to clipb "+cb+"["+cw+"c</color>]> to clipc"
+        choice = user_input("||: ",0,1)
+        if choice == "1" and command.hasIndex("enum") then 
+          return command.enum(o) 
+        else 
+          globals.enumerated = o 
+          return o 
+        end if
+        if choice == "2" then 
+            set_key = user_input("set_key (<b>enter</b>=quit):> ")
+            if set_key == "" then print "aborting..."
+            return command.cob("set", set_key, o)
+        end if
+        if choice == "3" then 
+            tb = user_input("select an index:> ").to_int
+            if tb < o.len and tb >= 0 then  
+                print "sending element to "+colorOrange+"BUFFER..."
+                globals.BUFFER.push(o[tb])
+            else
+                print "invalid index; aborting..."
+            end if
+        end if
+        if choice == "a" then return command.clipa(o)
+        if choice == "b" then return command.clipb(o)
+        if choice == "c" then return command.clipc(o)
+        return 0
+    end if
+    out = []
+    for d in o
+        out.push(d+char(10))
+    end for
+    return 0
+end function
+
+globals.p_exe = function( obj, f_name=null ) // obj is either game object or function
+  if DEBUG then print("debug: In P_EXE: "+@obj+": "+f_name)
+  if typeof(@obj) != "function" and not p_validate(obj, f_name) then return "p_exe: invalid input; expects object or function"
+  foo = @obj 
+  if typeof(@obj) != "function" then 
+    if f_name then foo = @obj[f_name] else return "p_exe: missing function name"
+  end if
+  if typeof(@foo) != "function" then return foo
+  args = str(@foo).split( "FUNCTION" )[1].split(", ")
+  if DEBUG then print "debug: args input: "+args
+  if args.len == 1 then 
+    if args == ["()"] then args[0] = []
+  end if
+  if not f_name then f_name = str(@foo).split( "FUNCTION" )[0]
+  a=[]
+  i=0
+  for ar in args 
+    if ar == null or ar == [] then continue
+    ar = ar.replace("\)","").replace("\(","")
+    if DEBUG then print "debug: ar: "+ar
+    if ar == "" then continue
+    if DEBUG then print("typeof "+ar+": "+typeof(ar))
+    if str(ar) == "self" then 
+        if typeof(@obj) == "function" then 
+            self_param = user_input("Use [@a|@b|@c ] to use an object from the clipboard, (q=quit)"+char(10)+colorLightBlue+"Supply argument for: "+colorWhite+ ar +CT+char(10)+"</b>:> ")
+            if self_param == "@a" then self_param = CLIP["a"]
+            if self_param == "@b" then self_param = CLIP["b"]
+            if self_param == "@c" then self_param = CLIP["c"]
+            if typeof(self_param) == "string" then 
+                print "error: expected object, got string"
+                return 0
+            end if 
+            a.push(self_param)
+            continue
+        end if
+        a.push(obj)
+        continue 
+    end if
+    def = ar.split("=")
+    if def.len > 1 then def = def[1].trim else def = """"
+
+    inp = user_input("(Use [@a|@b|@c] for the clipboard"+char(10)+"-- ints are cast as ints, use 'int' to cast as string"+char(10)+"<b>enter="+def+"</b>, null=null,  q=quit)"+char(10)+colorLightBlue+"Supply argument for: "+colorWhite+ ar +CT+char(10)+"</b>:> ")
+    if @inp == "q" then return "aborting..."
+    if @inp == "" then inp = def
+    if @inp == "null" then inp = null
+    if @inp == "@a" or @inp == "@clipa" then inp = @globals.CLIP["a"]
+    if @inp == "@b" or @inp == "@clipb" then inp = @globals.CLIP["b"]
+    if @inp == "@c" or @inp == "@clipc" then inp = @globals.CLIP["c"]
+    if typeof(@inp) == "string" then 
+        tint = inp.remove("'")
+        if typeof(inp.to_int) == "number" then inp = inp.to_int // assume integers are to be cast as integers
+        if typeof(tint).to_int == "number" then inp = tint // if it's wrapped in ' then it's a string
+    end if
+    if DEBUG then print "debug: p_exe_: input is "+@inp+" and is a "+typeof(@inp)
+    a.push(@inp)
+    i = i + 1
+  end for 
+
+  if DEBUG then print "obj is: "+@obj+" and is a: "+typeof(@obj)
+  if DEBUG then print "f_name is: "+f_name
+  if typeof(@obj) == "function" then o = @obj else o = @obj[f_name]
+  catch = null
+  if args == [[]] then args = []
+  if DEBUG then print("debug: args to run: "+args.len+": "+args)
+  if args.len == 0 then return o
+  if args.len == 1 then return o(a[0])
+  if args.len == 2 then return o(a[0], a[1])
+  if args.len == 3 then return o(a[0], a[1], a[2])
+  if args.len == 4 then return o(a[0], a[1], a[2], a[3])
+  if args.len == 5 then return o(a[0], a[1], a[2], a[3], a[4])
+  if args.len >= 6 then return o(a[0], a[1], a[2], a[3], a[4], a[5])
+  if args.len > 6 then return "p_exe: sadness: can't handle more than 6 args"
+end function
+
+p_validate = function( o, query=null )
+  if DEBUG then print "DEBUG: in p_validate"+char(10)+"validating: "+@o
+  if typeof(@o) == "number" or typeof(@o) == "string" or not @o.hasIndex("__isa") then return 1
+  methods = o.__isa.indexes
+  if methods.len < 2 then return 0
+  test = new @o 
+  if test == null then return 0
+  if not query then
+    if DEBUG then print "debug: no query"
+    o_type = typeof(o) 
+    switch(o_type)
+    // this uh... doesn't actually do anything....
+      if DEBUG then print "debug: switch: start"
+      case("ftpshell",@p_validate(o,"start_terminal"))
+      case("shell",@p_validate(o,"start_terminal"))
+      case("computer",@p_validate(o,"get_name"))
+      case("file",@p_validate(o,"name"))
+      case("MetaLib",@p_validate(o,"version"))
+      case("MetaxploitLib",@p_validate(o,"rshell_server"))
+      case("aptclientLib",@p_validate(o,"update"))
+      case("blockchainLib",@p_validate(o,"coin_price"))
+      case("cryptoLib",@p_validate(o,"decipher"))
+      case("service",@p_validate(o,"install_service"))
+      case("SmartAppliance",@p_validate(o,"model"))
+      case("router",@p_validate(o,"bssid_name"))
+      case("port",@p_validate(o,"port_number"))
+      case("net_session",@p_validate(o,"dump_lib"))
+      case("debugLibrary",@p_validate(o,"scan"))
+      if DEBUG then print "debug: switch: firing default"
+    v = default(1)
+    return v
+  end if
+  if DEBUG then print "debug: query: "+query
+  if @o.hasIndex("__isa") and typeof(@o) != "string" then
+    if DEBUG then print colorGreen+"__isa indexes found: "+o.__isa.indexes.len
+    q = o.__isa.hasIndex(query)
+    if DEBUG then print "result: "+q
+	  if typeof(@o) == "file" then // hack to make this work for files. testing needed to see if other objects have somethign like this
+      if o.name then return q else return 0
+    end if
+    return q // does the object have the index we seek?
+  else 
+    if DEBUG then print colorOrange+"_isa index not found"
+    return 1
+  end if
+end function 
+
+// not exactly useful if it only takes one arg
+globals.fexecute = function(function_ref,args)
+  print "fexecute: <mark=yellow># <color=white>#</color> executing # <color=white>#</color> </mark>"
+  if typeof(@funciton_ref) == "function" then 
+    return function_ref(args) 
+  else 
+    print "fexecute: invalid input"
+  end if
+  return 0
+end function
+
+
+///////// BEGIN SWITCH
+// Usage:
+// switch(variable)
+// 	case( condition, @action )
+//  case( condition, @action )
+//  case(...)
+// default( @action )
+// returns: result of action
+///// Plu70 switch
+// _switch = {}
+// _switch.var = ""
+// _switch.set_var = function( input )
+//   if DEBUG then print "-switch: input: "+@input
+//     _switch.var = @input
+// end function
+// _switch.case_list = []
+// _switch.case = function( condition, action )
+//     _switch.case_list.push( {condition:@action} )
+// end function
+// _switch.default = function( action, mode ) // action is function, object, var || mode is "return literal" or "return reference"; used to determing function return handling
+//     // evaluate switch
+//     if _switch.case_list.len > 0 then
+//         for line in _switch.case_list
+//             if @line.hasIndex(_switch.var) then 
+//         if DEBUG then print "_switch.var: "+_switch.var
+//                 s = @line[_switch.var]
+//                 _switch.var = ""
+//                 _switch.case_list = []
+//                 return s
+//             end if
+//         end for
+//         _switch.var = ""
+//         _switch.case_list = []
+//         return action
+//     end if
+// end function
+// globals.switch = @_switch.set_var
+// globals.case = @_switch.case
+// globals.default = @_switch.default
+// ///////////// END Plu70 SWITCH
+
+///////// BEGIN SWITCH
+// Usage:
+// switch(variable)
+//     case( condition, @action )
+//  case( condition, @action )
+//  case(...)
+// default( @action )
+// returns: result of action
+///// 0x0 switch // still in testing
+_switch = {}
+_switch.var = ""
+_switch.set_var = function( input )
+    if DEBUG then print "-switch: input: "+@input
+    _switch.var = @input
+end function
+_switch.case_map = {}
+_switch.case = function( condition, action )
+    _switch.case_map[@condition] = @action
+end function
+_switch.default = function( action, mode=false  )  // action is function, object, var || mode is "return literal" or "return reference"; used to determing function return handling
+    // evaluate switch
+    if _switch.case_map.hasIndex(@_switch.var) then 
+        if DEBUG then print "_switch.var: "+@_switch.var
+        result = _switch.case_map[@_switch.var]
+    else
+        result = @action
+    end if
+    _switch.var = ""
+    _switch.case_map = {}
+    if mode then return @result else return result
+end function
+globals.switch = @_switch.set_var
+globals.case = @_switch.case
+globals.default = @_switch.default
+// ///////////// END SWITCH
+if DEBUG then print("<size=75%>loaded _switch engine...</size>")
+
+globals.get_binaries = function(source_shell,dest_folder,onlylogs=0)
+  // verify dest_folder exists
+  if not dest_folder or typeof(globals.get_file(dest_folder)) != "file" then return "error: destination folder does not exist!"
+  // get source_shell home folder
+  s_home = source_shell.host_computer.File("/home")
+  if not s_home then return "error: target /home does not exist!"
+  // find all non-folder binaries except police/student/employees viewer and traffic viewer
+  bin_buf = []
+  tcatch = command.tree("-f",source_shell) // results are sent to globals.enumerated
+  if tcatch == "tree: invalid path or file" then return tcatch
+  if DEBUG then print "debug: enum: "+char(10)+globals.enumerated
+  print colorCyan+"Fetching readable binaries..."
+  for f in globals.enumerated
+    if f.is_binary and not f.is_folder and f.has_permission("r") and f.parent.parent.path == "/home" then 
+      if onlylogs then 
+        if f.path[-4:] == ".log" then bin_buf.push(f)
+      else  
+        bin_buf.push(f)
+      end if
+    end if
+  end for
+  if DEBUG then print "debug: in get_binaries: bin_buf is"+char(10)+bin_buf
+  // find system.log 
+  print colorCyan+"</b>Fetching system.log if readable..."
+  sysl = source_shell.host_computer.File("/var/system.log")
+  if not sysl then 
+    print colorOrange+"/var/system.log not found!"
+  else 
+    if sysl.has_permission("r") then bin_buf.push(sysl)
+  end if
+  // scp download all files to dest folder of active shell
+  // -- warn if glasspool is active
+  if globals.GLASSPOOL then print colorOrange+"Warning: Glasspool is active:"+char(10)+colorOrange+"Files will be written to the glasspooled machine."
+  for entry in bin_buf
+    if typeof(entry) == "file" then source_file = entry.path else continue
+    if DEBUG then print "debug: source_file is: "+source_file+":"+typeof(source_file)
+    print command.scpm("-d",source_file,dest_folder,source_shell)
+  end for
+  return colorCyan+"fetch: readable binaries Fetched."+char(10)+colorGreen+"kore"+CT+": recommendation: secure yourself with:"+char(10)+"<b>kore -s</b> or <b>lock | usr -r root / | grp -r root /</b> "
+end function
+
+// not yet used
+globals.trythis = function(function_reference, function_name)
+  try = get_custom_object
+  try.fn = ""
+  try.success = false
+  try.this = function( input_function, function_name="anon" ) // (function_reference, string)
+    self.fn = function_name
+    self[self.fn] = @input_function
+    self.write( self.fn )
+    self.success = false
+    return self.evalute( self.fn ) // returns true if function ran or false if function crashed
+  end function
+  try.write = function( f_name )
+    f_name = f_name+".src"
+    comp = get_shell.host_computer
+    comp.touch( current_path, f_name )
+    outfile = comp.File( f_name )
+    output = []
+    output.push( "try=get_custom_object" )
+    output.push( "f = @try[try.fn]" ) 
+    output.push( "f" )                // if it crashes here, success remains false as it returns to the launching script
+    output.push( "try.success = true" ) // if it makes it to here, we didn't crash, so success is true!
+    print outfile.set_content( output.join(char(10)) )
+    print get_shell.build(current_path+"/"+f_name, current_path, 0)
+    return 0
+  end function
+  try.evaluate = function( fname )
+    globals.stack_pool("up")
+    get_shell.launch( fname )
+    //_cascade // exit if cascade
+    globals.stack_pool("down")
+    return self.success
+  end function
+
+  return try.this(@function_reference, function_name)
+end function 
+
+globals.rsi_purge = function(ktar="ALL")
+  rshells = metaxploit.rshell_server
+  if(typeof(rshells) == "string") then return(rshells)	
+  for r in rshells
+    print colorLightBlue+"rsi: kill "+colorCyan+ktar+"</color> >> "+colorWhite+r.host_computer.public_ip+ " @ "+r.host_computer.local_ip
+    print command.kill(ktar,r)
+
+    // processes = r.host_computer.show_procs.split(char(10))
+    // for p in processes
+    //   if p == "USER PID CPU MEM COMMAND" then continue
+    //   process = p.split(" ")
+    //   process_ID = process[1]
+    //   process_CMD = process[4]
+    //   if process_CMD != exclude then 
+    //     print "Killing: "+process_CMD+" ID: "+process_ID
+    //     print r.host_computer.close_program(process_ID.to_int)
+    //   else 
+    //     print "rsi: excluding "+exclude+" from purge..."
+    //   end if
+    // end for
+  end for
+  return 0
+end function
+
+globals.netdump = function()
+  if not globals.net_session then 
+    if DEBUG then print "debug: netdump: no net_session"
+    return ["","","","","","",""]
+  end if
+  if DEBUG then print "debug: netdump working..."
+  if not p_validate(globals.net_session, "get_num_conn_gateway") then return ["-no net_session connected-","","","","","",""]
+  locals.metaLib = globals.net_session.dump_lib
+  nd = [colorLightBlue+"</b>Netsession linked to: "]
+  nd.push(colorLightBlue+"</b>"+locals.metaLib.lib_name + " v " + locals.metaLib.version+CT)
+  nd.push(colorLightBlue+"</b>    [-] Gateway_connections:  ["+globals.net_session.get_num_conn_gateway+"]")
+  nd.push(colorLightBlue+"</b>    [-] Port_forwards:        ["+globals.net_session.get_num_portforward+"]")
+  nd.push(colorLightBlue+"</b>    [-] Registered users:     ["+globals.net_session.get_num_users+"]")
+  if globals.net_session.is_any_active_user == true then nd.push(colorLightBlue +"</b>    [-] A user is active.") else nd.push(colorLightBlue+"</b>    [-] No active user.")
+  if globals.net_session.is_root_active_user == true then nd.push(colorLightBlue+"</b>    [-] Root is active.") else nd.push(colorLightBlue  +"</b>    [-] Root is inactive.")
+  if DEBUG then "netdump: returning: "+nd
+  return nd
+end function
+
+fw_rules = function()
+  print(get_router(targetIP).firewall_rules)
+end function
+
+// // takes object, returns file object or string; sends file object and string to buffer
+globals.curl = function(hacked_thing=globals.localmachine) 
+  html = null
+  html_content = null
+  print(colorWhite+"<size=50%><u>curl GET #?object?:/Public/htdocs/website.html...</u></size>"+CT)
+  if typeof(hacked_thing) == "shell" then html = hacked_thing.host_computer.File("/Public/htdocs/website.html")
+  if typeof(hacked_thing) == "computer" then html = hacked_thing.File("/Public/htdocs/website.html")
+  if typeof(hacked_thing) == "file" then
+    while hacked_thing.name != "/"
+      hacked_thing = hacked_thing.parent
+    end while
+    folders = hacked_thing.get_folders
+    for f in folders
+      if f.name == "Public" then
+        sub_f = f.get_folders
+        for s_f in sub_f
+          if s_f.name == "htdocs" then
+            files = s_f.get_files
+            for sub_file in files
+              if sub_file.name == "website.html" then html = sub_file
+            end for
+          end if
+        end for
+      end if
+    end for
+  end if
+  if not html then return "curl: failed to GET website.html"
+  globals.BUFFER.push(html)
+  print("curl:<b> "+html.path+" added to BUFFER</b>")
+  if html.has_permission("r") then html_content = html.get_content.split(char(10))
+  if html_content then 
+    colorWhite+"- - - "+colorLightBlue+"</b>Displaying Raw HTML</b></color> - - -"
+    for ln in html_content
+      print "<noparse>"+ln 
+    end for
+    print colorWhite+" - - - - - - - - - - - - - - - - - - "
+    globals.BUFFER.push(html_content.join(char(10)))
+    print colorOrange+"curl: added website.html contents to BUFFER"
+    return html 
+  else 
+    return "curl: cannot read website.html; check permissions"
+  end if
+end function
+
+secure_copy = function(shl,copy_to=0,trajectory=-1,skip_perms=0) 
+  glass_stat = "inactive"
+  active_s = colorCyan+"</b>"+localmachine.local_ip+" @ <b>"+localmachine.public_ip+CT
+  target_s = colorOrange+"pshell"+CT
+  if p_validate(shl, "host_computer") then
+    target_s = colorOrange+"</b>"+shl.host_computer.local_ip+" @ <b>"+shl.host_computer.public_ip+CT
+    if shl.host_computer.local_ip == localmachine.local_ip and shl.host_computer.public_ip == localmachine.public_ip then active_s = colorOrange+"</b>"+localmachine.local_ip+" @ <b>"+localmachine.public_ip+CT
+  else 
+    return colorError+"scp: target shell has been invalidated"
+  end if
+  if globals.GLASSPOOL then glass_stat = "active"
+  print(char(10)+colorLightBlue+"<u>GLASSPOOL: "+CT+colorOrange+glass_stat+CT+"<b> Active Shell</b>: "+active_s+"</u>")
+  print(colorWhite+"Upload|Push trajectory: "+CT+char(10)+active_s+"--->"+target_s)
+  print(colorWhite+"Dnload|Pull trajectory: "+CT+char(10)+target_s+"--->"+active_s)
+  print(colorWhite+"---scp---------------"+CT)
+  copy_from = null
+  if DEBUG then print "debug: in secure_copy: tagged4scp: "+globals.tagged_for_scp
+  if globals.tagged_for_scp != "" and globals.tagged_for_scp != null then copy_from = globals.tagged_for_scp
+  if copy_from then print "Copying from: "+copy_from else copy_from = user_input("Full path to copy from:>  ")
+  if copy_from == "" or copy_from == " " then return colorOrange+"scp: invalid copy_from path"
+  if not copy_to then copy_to = user_input("Destination folder:> ")
+  if copy_to == "" or copy_to == " " then return colorOrange+"scp: invalid destination path"
+  if trajectory >= 0 then udp = str(trajectory) else udp = user_input("[0] upload [1] download"+char(10)+"(q=quit)|| : ",0,1)
+  if DEBUG then print "debug: udp is "+udp+" and is a "+typeof(udp)
+  if udp == "q" then return
+  if udp == "1" then
+    if typeof(shl) == "shell" or typeof(shl) == "ftpshell" or typeof(shl) == "pshell" then
+      targ_f = shl.host_computer.File(copy_from)
+      if targ_f then
+        print("scp: pulling "+targ_f.path+" from "+shl.host_computer.local_ip+" @ "+shl.host_computer.public_ip)
+      else
+        return colorOrange+"scp-download: "+copy_from +" not found"
+      end if
+      if not targ_f.has_permission("r") then return "scp: copy permission denied"
+      if typeof(shl) == "shell" then return shl.scp(copy_from, copy_to, globals.shell) ///////// copying
+      if typeof(shl) == "ftpshell" then return colorError+"</b>scp: error; a game bug prevents ftpshell.put from functioning"//shl.put(copy_from, copy_to, globals.shell) ///////// copying
+      if typeof(shl) == "pshell" and p_validate(shl,"scp") then return shl.scp(copy_from, copy_to, globals.shell) else return colorWarning+"scp: p_object; invalid object or no scp function"///////// copying
+      return "aborting..."
+    end if
+  else
+    if udp == "0" then
+      if typeof(globals.shell) == "shell" then
+        payload = globals.get_file(copy_from)
+        if not payload then
+          return colorOrange+"scp-upload: "+copy_from+" not found"
+        end if
+        print(char(10)+"Found: "+payload.path + " " + payload.size + " " + payload.permissions+char(10))
+        print("<b>edit permissions</b>? (default: yes)")
+        if skip_perms then mod = "1" else mod = user_input("[<b>0</b>] yes [1] no (q=quit)||: ",0,1)
+        if mod.lower == "q" then return "aborting..."
+        if mod != "1" then
+          print("e.g. o+rwx g-rwx u+x (string all edits on one line separated by spaces)")
+          ed_in = user_input("params for [perms/chmod -r] (default:<b> o+rwx </b>, q=quit)"+char(10)+":> ")
+          if ed_in.lower == "q" then return "aborting..."
+          if ed_in == "" then ed_in = ["o+rwx"] else ed_in = ed_in.split(" ")
+          for ed in ed_in
+            catch = command.perms("-r", ed, copy_from)
+            if catch then print catch
+          end for
+        end if
+        if mod.lower == "q" then return "aborting..."
+        print(char(10)+"<b>Upload Ready: "+payload.path + " " + payload.size + " " + payload.permissions+"</b>"+char(10))
+        failed = false
+        print("scp: pushing "+payload.path+" to "+copy_to+" @ "+shl.host_computer.local_ip+" : "+shl.host_computer.public_ip)
+        print(shell.scp(payload.path, copy_to, shl)) ///// copying
+        if copy_to == "/" then copy_to = ""
+        if not shl.host_computer.File(copy_to+"/"+payload.name) then failed = true else globals.tagged_for_scp == ""
+        if failed == true then print "Upload failed... edit/restore permissions?" else print("Upload complete... <b>edit/restore permissions</b>?")
+        if skip_perms then mod = "1" else mod = user_input("[<b>0</b>] yes [1] no ||: ",0,1)
+        if mod != "1" then
+          print("e.g. o+rwx g-rwx u+x (string all edits on one line separated by spaces)")
+          ed_in = user_input("params for [perms/chmod -r] (default:<b> o-rwx </b>, q=quit)"+char(10)+":> ")
+          if ed_in.lower == "q" then return "aborting..."
+          if ed_in == "" then ed_in = ["o-rwx"] else ed_in = ed_in.split(" ")
+          for ed in ed_in
+            catch = command.perms("-r", ed, payload.path)
+            if catch then print catch
+          end for
+        end if
+        if failed then return "scp: failed" else return "scp complete: "+payload.path + " " + payload.size + " " + payload.permissions+char(10)+"-- copied to: "+copy_to+"/"+payload.name
+      else
+        if typeof(globals.shell) == "ftpshell" then print colorRed+"</b>scp: error; a game bug prevents ftpshell.put from working"+char(10)+"-- aborting..." else print "aborting..." //print(shell.put(copy_from, copy_to, shl)) else return "aborting..." ///// copying
+        return "scp complete: "+payload.path + " " + payload.size + " " + payload.permissions+char(10)+"-- copied to: "+copy_to+"/"+payload.name
+      end if
+    end if
+  end if
+end function
+
+//// Scribus
+scribus = function(f_obj)
+
+  print("\nScribus v 0.2.9 by Plu70\n//////////////////////\n(@h on newline for help)\n")
+
+  print_help = function()
+    print
+    print("Enter new lines of text (or commands) when numbered prompt is visible. eg:<b> 1: @h </b>")
+    print("Enter @ on a new line to save and quit (@@ to exit without saving)")
+    print("Enter all @x commands on a new line.")
+    print("@l - list lines (with line numbers)")
+    print("@L - list lines (without line numbers)")
+    print("@s - search for text (word, string, single char), returns all matches")
+    print("@d - delete line (closes gap)")
+    print("@r - replace line with new text")
+    print("@i - insert new line below a given line ")
+    print("@I - insert a new line above given line ")
+    print("@c - clear the buffer (deletes all text)")
+    print("@C - clear the screen (run clear_screen)")
+    print("@t - trim whitespace from the buffer")
+    print("@n - display buffer without parsing richtext or markup")
+    print("@N - as above, but without line numbers")
+    print("@h - show this help file")
+    print("@@ - abort and quit")
+    print
+  end function
+
+  got_file = false
+  got_list = false
+  editing = true
+  array = f_obj
+  if typeof(array) == "list" then
+    array = f_obj[0:]
+    got_list = true
+  end if
+  if typeof(array) == "file" then
+    if array.is_binary or not array.has_permission("r") then return "Scribus: cannot open binary file."
+    array = f_obj.get_content
+    got_file = true
+  end if
+  if typeof(array) == "string" then array = array.split(char(10))
+  if typeof(array) != "list" then return "Scribus: invalid type: "+typeof(array)
+  i = 0
+  if array == [""] or array == 0 then array = []
+  for l in array
+    print(i+": "+l)
+    i = i + 1
+  end for
+  while editing
+    line_num = array.len
+    buf = user_input(line_num+": ")
+    if buf.len == 2 and buf[0] == "@" and buf[1] == "h" then
+      print_help ////////////////HELP
+      continue
+    end if
+    if buf.len == 2 and buf[0] == "@" and buf[1] == "@" then return 0
+    if buf == "@" and buf.len == 1 then       ///////////////////////EXIT
+      editing = false
+      continue
+    else
+      if buf.len == 2 and buf[0] == "@" then
+        if buf[1] == "r" then             //////////////////////REPLACE LINE
+          num_lines = array.len - 1
+          i = 0
+          print
+          for l in array
+            print(i+": "+l)
+            i = i + 1
+          end for
+          line = user_input("Line to replace (0 to " + num_lines + ")\n&: ").val
+          if line >= 0 and line < array.len then
+            print("#: "+array[line])
+            replacement_text = user_input("&: ")
+            array[line] = replacement_text
+            i = 0
+            print
+            for l in array
+              print(i+": "+l)
+              i = i + 1
+            end for
+            continue
+          else
+            print("Line "+line+" doesn't exist.")
+            continue
+          end if
+        else
+          if buf[1] == "l" then      ///////////////////////LIST LINES
+            i = 0
+            print
+            for l in array
+              print(i+": "+l)
+              i = i + 1
+            end for
+            continue
+          else
+            if buf[1] == "s" then     ////////////////////////SEARCH
+              find = user_input("Search for string\n*: ")
+              temp = array
+              i = 0
+              for ln in temp
+                if ln == find then print("Found: "+find+" on line "+i+"\n#: "+ln)
+                for word in ln.split(" ")
+                  if word == find then print("Found: "+find+" on line "+i+"\n#: "+ln)
+                end for
+                i = i + 1
+              end for
+              continue
+            else
+              if buf[1] == "d" then    //////////////////////DELETE
+                i = 0
+                print
+                for l in array
+                  print(i+": "+l)
+                  i = i + 1
+                end for
+                num_lines = array.len
+                if num_lines < 1 then
+                  print("No lines to delete.")
+                  continue
+                end if
+                d_line = user_input("Line to delete (0 to " + (num_lines-1) + ")\n!: ").to_int
+                if d_line >= 0 and d_line < array.len then
+                  print("Deleting... "+array[d_line])
+                  array.remove(d_line)
+                  i = 0
+                  print
+                  for l in array
+                    print(i+": "+l)
+                    i = i + 1
+                  end for
+                  continue
+                else
+                  print("Line "+d_line+" doesn't exist.")
+                  continue
+                end if
+              else
+                if buf[1] == "i" or buf[1] == "I" then  ///////////////////INSERT
+                  temp = []
+                  i = 0
+                  print
+                  for l in array
+                    print(i+": "+l)
+                    i = i + 1
+                  end for
+                  num_lines = array.len
+                  if num_lines < 1 then
+                    print("buffer is empty.")
+                    continue
+                  end if
+                  if buf[1] == "i" then // insert after
+                    i_line = user_input("Insert text after which line? (0 to " + (num_lines - 1) + ")\n%: ").to_int
+                    if i_line >= 0 and i_line < array.len then
+                      i_text = user_input("Text to insert after line: "+i_line+"\n%: ")
+                      for r in range(0,i_line)
+                        temp.push(array[r])
+                      end for
+                      temp.push(i_text)
+                      for a in range(i_line,array.len-1)
+                        if a > i_line then temp.push(array[a])
+                      end for
+                      array = temp
+                      i = 0
+                      print
+                      for l in array
+                        print(i+": "+l)
+                        i = i + 1
+                      end for
+                      continue
+                    else
+                      print("Line "+i_line+" doesn't exist.")
+                      continue
+                    end if
+                  else             // insert before
+                    i_line = user_input("Insert text before which line? (0 to " + (num_lines - 1) + ")\n%: ").to_int
+                    if i_line >= 0 and i_line < array.len then 
+                      i_text = user_input("Text to insert before line: "+i_line+"\n%: ")
+                      if i_line == 0 then 
+                       temp = [i_text]+array 
+                      else 
+                        temp = array[0:i_line]
+                        temp.push(i_text)
+                        temp = temp + array[i_line:]
+                      end if 
+                      array = temp
+                      i = 0
+                      print
+                      for l in array
+                        print(i+": "+l)
+                        i = i + 1
+                      end for
+                      continue
+                    else 
+                      print("Line "+i_line+" doesn't exist.")
+                      continue
+                    end if
+                  end if
+                else
+                  if buf[1] == "c" then ///////////CLEAR
+                    print("Really clear the buffer? [y/N]")
+                     confirm = user_input("!: ")
+                    if confirm.lower == "y" then
+                      array = []
+                      print("Buffer cleared. ")
+                      continue
+                    end if
+                    print("aborting...")
+                    continue
+                  else
+                    if buf[1] == "C" then /////////CLEAR_SCREEN
+                      clear_screen
+                      continue
+                    else
+                      if buf[1] == "L" then //////////List lines no numbers
+                        print
+                        for l in array
+                          print(l)
+                        end for
+                        continue
+                      else 
+                        if buf[1] == "t" then ////////Trim whitespace
+                          t_array = []
+                          for line in array 
+                            t_array.push(line.trim)
+                          end for
+                          array = t_array 
+                          i = 0
+                          print
+                          for l in array
+                            print(i+": "+l)
+                            i = i + 1
+                          end for
+                          continue 
+                        else 
+                          if buf[1] == "n" then 
+                            i = 0
+                            print
+                            for l in array
+                              print(i+": "+"<noparse>"+l)
+                              i = i + 1
+                            end for
+                            continue
+                          else 
+                            if buf[1] == "N" then 
+                              print
+                              for l in array 
+                                print "<noparse>"+l 
+                              end for 
+                              continue 
+                            end if
+                          end if
+                        end if
+                      end if
+                    end if
+                  end if
+                end if
+              end if
+            end if
+          end if
+        end if
+      end if
+    end if
+    array.push(buf)  
+  end while
+  new_array = array.join(char(10))
+  if got_file then
+    f_obj.set_content(new_array)
+    return f_obj.get_content
+  end if
+  return new_array // returns a string
+end function
+/////////////////////////////////////// END Scribus ///////////////////////////////
+
+////////////// BEGIN_MEMORY_ALPHA //////////////////////////////
+globals.memory_alpha = function(go_to_buffer=false,go_to_selection=null)
+  banner = colorRed + "5phinx"+char(8482)+colorWhite+" v " + sphinx_version + ", Memory_Alpha v "+malp_version+" by Plu70"+char(10)+colorGold+"//////////////////////////////////////////////"
+  buffered_filesys = null
+  viewing = true
+  print banner
+  if metaxploit then print(colorWhite + "MetaXploit.so v " + metaLibVersion + " // " + "Crypto.so v " + cryptoLibVersion)
+  print
+  while viewing
+    print banner
+    if metaxploit then print(colorWhite + "MetaXploit.so v " + metaLibVersion + " // " + "Crypto.so v " + cryptoLibVersion)
+    print
+    print
+    if PORT_MAP then print(colorLightBlue+"[0] Portmap Loaded. ")
+    if globals.XPLOITS then print(colorLightBlue+"[1] XPLOITS loaded: ["+NUM_SPLOITS+"] ")
+    if metaLib then
+      linked = "MetaLib"
+      if globals.net_session then linked = "Netsession"
+      print colorLightBlue+"[2] "+linked+" linked to: "+ globals.metaLib.lib_name + " v " + globals.metaLib.version
+      if globals.net_session and netdump then
+        netdump.pull 
+        netdump.pull
+        print netdump.join(char(10))
+      end if
+      if meta_scan then print(colorLightBlue+"</b>    [+] MetaLib source decompiled.")
+    end if
+    if MEMORY or globals.XPLOITS.len or PORT_MAP then print(colorLightBlue+"[3] Dump Memory ")
+    print(colorLightBlue+"[4] File manager")
+    if BUFFER.len > 0 then print(colorOrange+"</b>+[5] [Storing: "+BUFFER.len+" buffer objects]")
+    print(colorGold+"</b>[6] Air [/] cBios [-] RSI [.] dBase" )
+    print(colorGold+"</b>[7] Go Back   [8] Procs   [9] Kill  ")
+    if DEBUG then print("prompt ready: ")
+    if go_to_buffer then
+      waitFor = "5"
+    else 
+      waitFor = user_input(colorGold+"(q=quit)||: ",0,1)
+    end if
+    print banner
+    if metaxploit then print(colorWhite + "MetaXploit.so v " + metaLibVersion + " // " + "Crypto.so v " + cryptoLibVersion)
+    print
+    if waitFor == "." then
+      // globals.grepped_file = null
+      // dBase = command.tree("/","database.csv",1,"N")
+      // if not dBase then
+      //   print("/root/rkit/database.csv not found")
+      //   continue
+      // end if
+      // dBase_contents = ""
+      // if dBase.has_permission("r") then dBase_contents = dBase.get_content.split(char(10)) else dBase_contents = "/root/rkit/database.csv: permission denied"
+      dBase_contents = []
+      dBase = command.grep("-a","^database.csv")
+      if dBase isa string then 
+        print "No database files found"
+        continue 
+      end if
+      for d in dBase 
+        if d.has_permission("r") then dBase_contents = dBase_contents + d.get_content.split(char(10))
+      end for
+      dbi = 0
+      i = 0
+      link_list = []
+      print_list = []
+      for line in dBase_contents
+        if line.indexOf("Hooked:") == null then
+          print_list.push("["+colorWhite+dbi+CT+"] - "+line + " on line: "+i)
+          link_list.push(line)
+          dbi = dbi + 1
+        end if
+        i = i + 1
+      end for
+      print(format_columns(print_list.join(char(10))))
+      if dBase_contents.len > 1 then
+        link = user_input("link_db (q=quit):> ",0,0).to_int   // add db editing functions
+        if link == "q" then continue
+        if typeof(link) == "number" and link >= 0 and link < dbi then
+          command.linkdb(link_list[link])
+          print(colorOrange+"Purging meta_scan..."+CT)
+          globals.meta_scan = []
+          print("<b><size=75%>if database loaded you may review with [1] </b></size>")
+        end if
+        continue
+      else
+        print("No data to load.")
+      end if
+    end if
+    if waitFor == "-" then
+      command.rsi(0)
+      continue
+    end if
+    if waitFor == "/" then
+      print( command.bios )
+      continue
+    end if
+    if waitFor == "0" then
+      display_portmap
+      continue
+    end if
+
+    if waitFor == "1" then
+      data = []
+      i = 1
+      scanned = ["decompiling source.."]
+      if globals.meta_scan then 
+        for m in globals.meta_scan 
+          for n in m
+            if DEBUG then print(n)
+            if n.indexOf("searching unsecure values...") >= 0 or n.indexOf("decompiling source...") >= 0 then continue
+            scanned.push(n)
+          end for
+        end for 
+      end if
+      for x in globals.XPLOITS
+        data.push("[" +colorWhite+ i +CT+ "]"+colorLightBlue+ x+CT)
+        if globals.meta_scan then data.push(scanned[i])
+        i = i + 1
+      end for
+      print(data.join(char(10)))
+      continue
+    end if
+
+    if waitFor == "2" then
+      print("<u>=======</u>")
+      if meta_scan then
+        print "<noparse>"+command.code(meta_scan,0,0,0)
+      else
+        if globals.metaLib then conf = user_input("Scan metaLib for vuln requirements? [Y/n] ||: ",0,1) else continue
+        if conf.lower != "n" then 
+          print(colorGold+"<mark=red>decompiling...</mark>"+CT)
+          scan_memory
+          print("Source decompiled. Please select <b>[1]</b> to view.")
+        end if
+      end if
+      continue
+    end if
+
+    if waitFor == "3" then
+      dump_memory
+    end if
+    if waitFor == "4" then
+      print("[0] go back [1] tree: buffered_fs [2] felix: buffered_fs ")
+      f_mgr = user_input("(q=quit)||: ",0,1)
+      if f_mgr == "0" or f_mgr ==  "q" then continue
+      if f_mgr == "2" then
+        if buffered_filesys then
+          command.felix(buffered_filesys)
+          continue
+        else
+          print("No buffered filesystems. ")
+        end if
+        continue
+      end if
+      if f_mgr != "1" then continue
+      input = user_input("Enter abs_<b>path</b> to expand (local) or leave blank (buffered_fs):> ")
+      temp = null
+      if input then
+        temp = localmachine.File(input)
+      else
+        if buffered_filesys then
+          temp = buffered_filesys
+        end if
+      end if
+      if temp then
+        list_files(temp)
+        continue
+      else
+        print("No buffered filesystems. ")
+        continue
+      end if
+    end if // end option 4
+    /////////////////////////////////////////////////////////THE BIG BAD BUFFER PUFFER STUFFER//////////////////////////////////////////
+    if waitFor == "5" then
+      if BUFFER.len == 0 then
+        print(colorOrange+"\nBuffer empty. ")
+        continue
+      end if
+      print("\nExpanding... ")
+      print(colorWhite+"__________________________________")
+      i = 0
+      if DEBUG then print("checking buffer integrity...")
+      for b in globals.BUFFER //b_list
+        if DEBUG then print "debug: validating: "+p_validate(@b)
+        if DEBUG then print "-- b: "+@b
+        if not p_validate(@b) then 
+        // if typeof(@b) == "file" and not p_exe(@b,"name") then
+          globals.BUFFER.remove(globals.BUFFER.indexOf(b))
+          print "[<size=65%>malp: invalid object removed; skipping...</size>]"
+          continue
+        end if
+        /////////////////// BEGIN_BUFFER //////////////////////////////////////////////////
+        if typeof(@b) == "function" then
+          print colorOrange+"["+i+"]</b>BUFFERED: " + "["+checkUser(@b) +":"+ typeof(@b)+"]"
+        else
+          print colorOrange+"["+i+"]</b>BUFFERED: " + "["+checkUser(b) +":"+ typeof(b)+"]"
+        end if
+        if typeof(@b) == "file" then print(b.path+char(10)+b.permissions+" "+b.owner+" "+b.group+" "+b.size+" b["+b.is_binary+"] "+b.name)
+        if typeof(@b) == "computer" then print(format_columns(b.show_procs+char(10)+b.public_ip+char(10)+b.local_ip))
+        if typeof(@b) == "shell" or typeof(@b) == "ftpshell" then print format_columns(b.host_computer.show_procs+char(10)+b.host_computer.public_ip+char(10)+b.host_computer.local_ip)
+        if typeof(@b) == "list" or typeof(@b) == "map" then print "elements: "+b.len
+        if @b isa string then
+          print "elements: <b>"+b.len
+          if b.len > 32 then p = b[:32]+colorGrey+"..." else p = b
+          print p
+        end if
+        i = i + 1
+      end for
+      print colorWhite+"__________________________________"
+      selection = null
+      if go_to_selection isa string then go_to_selection = go_to_selection.to_int
+      if go_to_selection isa number and abs(go_to_selection) <= globals.BUFFER.len and go_to_selection < globals.BUFFER.len and go_to_buffer == true then selection = go_to_selection else selection = user_input(colorWhite+"Select an object to access:> "+CT).to_int
+      go_to_selection = null
+      go_to_buffer = false
+      if abs(selection) >= BUFFER.len or typeof(selection) != "number" then continue
+      if BUFFER.hasIndex(selection) and @BUFFER[selection] then
+        buffer_selection = @BUFFER[selection]
+        ////////////////////evaluate selection///////
+        print(colorOrange+"Expanding... "+CT+"["+colorWhite+typeof(@buffer_selection)+CT+"]")
+        if typeof(@buffer_selection) == "pshell" or typeof(@buffer_selection) == "pcomputer" or typeof(@buffer_selection) == "pfile" or typeof(@buffer_selection) == "prouter" then 
+          print(globals.decompiler(@buffer_selection))
+          continue
+        end if
+        if typeof(@buffer_selection) == "string" or typeof(@buffer_selection) == "list" or typeof(@buffer_selection) == "map" or typeof(@buffer_selection) == "number" or typeof(@buffer_selection) == "function" then
+          if typeof(@buffer_selection) == "function" then
+            args = str(@buffer_selection).split( "FUNCTION" )[1].split(", ")
+            print("function takes: "+args.len+" arguments.")
+           print "["+colorWhite+"c"+CT+"] add to custom object"
+            print "["+colorWhite+"d"+CT+"] execute function"
+            uip = user_input("(anything else = quit) :> <b>")
+            if uip == "d" then 
+              print(globals.decompiler(@buffer_selection))
+              continue 
+            end if
+            if uip == "c" then print command.cob("set",user_input("cob: set key to:> "),@buffer_selection)
+            continue 
+          end if
+          if typeof(@buffer_selection) == "string" then
+            colorGreen+"Buffered String is: "+colorWhite+buffer_selection.len+CT+" characters"
+            print colorOlive+"~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*"+char(10)
+            print buffer_selection
+            print char(10)+colorOlive+"~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*"+char(10)
+            print colorWhite+"<size=75%>["+colorWhite+"</b>1<color=green>|</color>d</color>]"+CT+" - Get Character Codes (decompiler)"+char(10)+
+            colorWhite+"</b><size=75%>["+colorWhite+"</b>2<color=green>|</color>s</color>]"+CT+" - save to file"+char(10)+
+            colorWhite+"</b><size=75%>["+colorWhite+"</b>3<color=green>|</color>e</color>]"+CT+" - edit with scribus"+char(10)+
+            colorWhite+"</b><size=75%>["+colorWhite+"</b>4<color=green>|</color>a</color>"+CT+colorWhite+"</b>]"+CT+" - to clipa "+colorWhite+"</b>["+colorWhite+"</b>5<color=green>|</color>b</color>"+CT+colorWhite+"</b>]"+CT+" - to clipb "+colorWhite+"</b>["+colorWhite+"6<color=green>|</color>c</color>"+CT+colorWhite+"</b>]"+CT+" - to clipc"
+            do_this = user_input("(<b>enter</b>=quit)||: ",0,1)
+            if do_this == "a" or do_this == "4" then print command.clipa(buffer_selection)
+            if do_this == "b" or do_this == "5" then print command.clipb(buffer_selection)
+            if do_this == "c" or do_this == "6" then print command.clipc(buffer_selection)
+            if do_this == "3" or do_this == "e" then globals.BUFFER.push(globals.scribus(buffer_selection.split(char(10))))
+            if do_this == "2" or do_this == "s" then  
+              to_path = user_input("save_to_path (<b>enter</b>=abort):> ")
+              if to_path == "" then continue
+              print command.poke(to_path,buffer_selection)
+              continue
+            end if
+            if do_this == "1" or do_this == "d" then 
+              chars = command.code(buffer_selection)
+              print chars 
+              globals.BUFFER.push(chars)
+            end if
+            continue
+          end if
+          print(globals.decompiler(@buffer_selection))
+          continue
+        end if
+        if typeof(@buffer_selection) == "custom_object" then
+          print(globals.decompiler(@buffer_selection))
+          continue
+        end if
+        if typeof(buffer_selection) == "file" then
+          print(command.file(@buffer_selection))
+          print(colorGreen+"<u>==================================</u>"+CT)
+          print("[a] to clipa|b|c...")
+          print("[f] - felix file explorer [w] website.html (curl)")
+          print("[r] rename     [m] move   [c] copy")
+          if not buffer_selection.is_binary then print("[7] open text  [8] edit   [9] save text ")
+          file_menu = user_input("[4] tag 4 scp  [5] rclean [6] spam "+char(10)+"[1] root file  [2] remove [3] perms"+char(10)+"[0] exit  [d] decompiler (q=quit)||: ",0,1 )
+          if file_menu == "a" then
+            print "["+colorWhite+"a"+CT+"] - to clipa, ["+colorWhite+"b"+CT+"] - to clipb, ["+colorWhite+"c"+CT+"] - to clipc"
+            tc = user_input("(<<b>enter</b>>=quit)||: ",0,1)
+            if tc == "a" then print command.clipa(buffer_selection)
+            if tc == "b" then print command.clipb(buffer_selection)
+            if tc == "c" then print command.clipc(buffer_selection)
+            continue
+          end if
+          if file_menu == "w" then 
+            print globals.curl(buffer_selection)
+            continue 
+          end if
+          if file_menu == "r" then 
+            newname = user_input("Enter a new filename:> ").trim
+            if newname == "" then print "aborting..." else print buffer_selection.move(buffer_selection.parent.path,newname)
+            continue
+          end if
+          if file_menu == "c" or file_menu == "m" then 
+            act = "Copy"
+            if file_menu == "m" then act = "Move"
+            new_path = user_input(act+" file to this <b>folder</b> (<<b>enter></b>=abort):"+char(10)+":> "+colorLightBlue)
+            if new_path == "" or new_path == " " then 
+              print "aborting..."
+              continue 
+            end if
+            final_name = user_input("Enter a new <b>filename</b> or press enter to keep the current one:"+char(10)+":> "+colorCyan+"</b>")
+            if final_name == "" or final_name == " " then final_name = buffer_selection.name
+            if act == "Move" then print buffer_selection.move(new_path,final_name) else print buffer_selection.copy(new_path,final_name)
+            continue
+          end if
+          if file_menu == "d" then 
+            print(globals.decompiler(@buffer_selection))
+            continue
+          end if
+          if file_menu.lower == "f" then
+            command.felix(@buffer_selection)
+            continue
+          end if
+          if file_menu == "4" then
+            globals.tagged_for_scp = buffer_selection.path
+            print("Tagged: "+globals.tagged_for_scp+" for scp.")
+            continue
+          end if
+          if file_menu == "9" then
+            if buffer_selection.is_binary then 
+              print colorOrange+"malp: cannot get contents of binary file"
+              continue
+            end if
+            down_to = user_input("save contents to: (leave blank to abort)"+char(10)+":> ")
+            if down_to == "" or down_to == " " then continue
+            print(command.poke(down_to))
+            print(command.append(down_to,@buffer_selection.get_content))
+            continue
+          end if
+          if file_menu == "8" and not @buffer_selection.is_binary then
+            if buffer_selection.has_permission("w") then
+              print(@buffer_selection.path+" is writable.")
+              if user_input("Edit with Scribus? [Y/n] ||: ",0,1).lower != "n" then command.scribus(@buffer_selection) else print("aborting...")
+              continue
+            else
+              print("error: file is write protected")
+              continue
+            end if
+          end if
+          if file_menu == "5" then
+            spoof = buffer_selection
+            print command.rclean(spoof)
+            continue
+          end if
+          if file_menu == "6" then 
+            print colorCyan+"</b>Create numbered copies of a file in a given directory"+char(10)+
+            "-- usefule for annoying someone or degrading hardware"
+            copies = user_input("Enter a number of copies to spam: "+char(10)+":> "+colorRed).to_int
+
+            print command.spam(copies,0,buffer_selection)
+
+            print 
+            continue 
+          end if
+          if file_menu == "1" then
+            while buffer_selection.name != "/"
+              buffer_selection = buffer_selection.parent
+            end while
+            globals.BUFFER.push(buffer_selection)
+            print("file rooted to <b>"+buffer_selection.name+"</b> and pushed to BUFFER")
+            continue
+          end if
+          if file_menu == "3" then
+            print "<b>Modify permissions for this file?"
+            p = user_input("[0] back [1] unlock [2] lock "+char(10)+"(q=quit)||: ",0,1)
+            if p == "0" or p == "q" then continue
+            if p == "1" then
+              try = buffer_selection.chmod("o+rwx",1)
+              try = buffer_selection.chmod("g+rwx",1)
+              try = buffer_selection.chmod("u+rwx",1)
+              if try == "" then print("Notice: "+buffer_selection.name+" <b>FULLY UNLOCKED</b>") else print(try)
+            end if
+            if p == "2" then
+              try = buffer_selection.chmod("o-rwx",1)
+              try = buffer_selection.chmod("g-rwx",1)
+              try = buffer_selection.chmod("u-rwx",1)
+              if try == "" then print("Notice: "+buffer_selection.name+" <b>FULLY LOCKED</b>") else print(try)
+              end if
+            continue
+          end if
+          if file_menu == "2" then
+            if user_input("Confirm delete "+buffer_selection.path+" [y/N] ||: ",0,1).lower != "y" then continue
+            print("attempting to delete: "+buffer_selection.path)
+            try = buffer_selection.delete
+            if try != "" then print(try) else print("deleted")
+            continue
+          end if
+          if file_menu == "7" then
+            if not buffer_selection.is_binary then print(buffer_selection.get_content) else print("error: can't open binary file")
+            continue
+          end if
+          if file_menu == "0" or file_menu == "q" then
+            print("<b>Filesystem buffered. Access with [4] </b>")
+            buffered_filesys = buffer_selection
+            continue
+          end if
+          continue
+        end if
+        if typeof(buffer_selection) == "computer" then
+          hooked_comp(buffer_selection)
+          continue
+        end if
+        ///////////////////// SHELL HANDLER ///////////////////////////
+        if typeof(buffer_selection) == "shell" or typeof(buffer_selection) == "ftpshell" then
+          shelling = true 
+          notftp = true 
+          if typeof(buffer_selection) == "ftpshell" then notftp = false
+          while shelling == true
+            print(colorOrange+"<mark=orange><u>= = = = = = = = = = = = = = =</u></mark>"+CT)
+            print(format_columns(buffer_selection.host_computer.show_procs)+char(10)+char(10)+checkUser(buffer_selection)+"@"+buffer_selection.host_computer.local_ip+char(10)+buffer_selection.host_computer.public_ip)
+            print(colorOrange+"<size=65%><mark=orange><u>= = = = = = = = = = = = = = = = = = = =</u></mark></size>"+CT)
+            print   "[f] felix  [c] curl       [p] purge from buffer"
+            if typeof(buffer_selection) == "shell" then 
+              print "[7] scp    [8] run        [9] fetch meta" +char(10)+
+                    "[4] glassp [5] rclean     [6] get computer "+char(10)+
+                    "[1] open   [2] redirect   [3] upload rkit"
+            end if                             
+            if typeof(buffer_selection) == "ftpshell" then 
+              print "[4] glassp [5] rclean     [6] get computer"
+              print "[1] open   [2] scp/put    [3] upload rkit"
+            end if
+            print   "[0] to cob [d] decompile  [b] fetch binaries"
+            choice = user_input("(q=quit)||: ",0,1)
+            if choice == "0" then 
+              print colorOrange+"cobbling..."
+              keyword = user_input("Enter custom_object key  for shell [q=quit]:> ")
+              if keyword.lower == "q" then 
+                print "aborting..."
+                continue 
+              else 
+                print command.cob("set",keyword,buffer_selection)
+                continue
+              end if
+            end if 
+            if choice == "9" and notftp then 
+              ccc = command.fetch(buffer_selection)
+              if typeof(ccc) == "MetaxploitLib" then 
+                print "-- "+colorOrange+"BUFFERING MetaxploitLib..."
+                globals.BUFFER.push(ccc)
+              else 
+                print "fetch: task failed"
+              end if
+            end if 
+            if choice == "f" then  
+              print("Buffering filesystem..." )
+              buffered_filesys = buffer_selection.host_computer.File("/")
+              print("<u>Buffered filesystem ready. Accessing with <b>felix</b>.</u>")
+              command.felix(buffered_filesys)
+              continue
+            end if
+            if choice == "p" then 
+              print command.purge("-b",str(selection))
+              print colorOrange+"Shell object purged from BUFFER"
+              continue 
+            end if
+            if choice == "d" then 
+              d=(globals.decompiler(buffer_selection))
+              print colorOrange+"BUFFERING..."+char(10)+d 
+              globals.BUFFER.push(d)
+              continue
+            end if
+            if choice == "b" then 
+              dest_folder = user_input(colorCyan+"Destination folder (currentPath=default,q=quit)"+char(10)+":> <u>"+colorWhite)
+                if dest_folder == "q" then continue 
+                if dest_folder == "" then dest_folder = currentPath
+                print globals.get_binaries(buffer_selection,globals.get_file(dest_folder))
+              continue 
+            end if
+            if choice == "q" then
+              buffered_filesys = buffer_selection.host_computer.File("/")
+              print("Buffering filesystem of computer object..." )
+              print(colorLightBlue+"<u><size=75%>Buffered filesystem ready. Access with [</b>4<b>]</u>"+CT)
+              shelling = false
+              continue
+            end if
+            if choice == "c" then
+              print( globals.curl(buffer_selection) )
+              continue
+            end if
+            if choice == "8" and notftp then
+              l_path = user_input(colorLightBlue+"Enter launch_path</color></b> (<b>enter</b>=abort, 5hell=launch_first_5hell_found)"+char(10)+colorCyan+":> </b><size=75%><u>"+colorWhite)
+              if l_path == "" then continue
+              if l_path == "5hell" then 
+                l_path = command.grep("-p","^5hell$",buffer_selection)
+                if l_path == "No 5hell found, aborting..." then continue else print colorCyan+"located 5hell in "+l_path
+              end if
+              l_para = user_input(colorWhite+"</b>Optional launch parameters: "+char(10)+"(@a=clipa, @b=clipb, @c=clipc, <b><enter></b>=skip)"+char(10)+":> "+colorWhite)
+              if l_para == "@a" then l_para = globals.clipboard_alpha
+              if l_para == "@b" then l_para = globals.clipboard_beta
+              if l_para == "@c" then l_para = globals.clipboard_gamma
+              print(colorLightBlue+"Initializing sshfs glasspool protocol..."+CT)
+              print(colorWhite+"<size=75%><u>Injecting process "+l_path+" into 0x"+"0B"+floor(rnd * 10)+floor(rnd * 10)+floor(rnd * 10)+"5C"+floor(rnd * 10)+"...</u></size>"+CT)
+              globals.stack_pool("up")
+              print(buffer_selection.launch( l_path, l_para ) )
+              //_cascade // exit if cascade
+              globals.stack_pool("down")
+              globals.update_path
+              continue
+            end if
+            if choice == "6" then
+              print("Buffering computer from shell_object..."+char(10)+"...computer_object sent to BUFFER")
+              BUFFER.push(buffer_selection.host_computer)
+              continue
+            end if
+            if choice == "5" then
+              print(rclean(buffer_selection))
+              continue
+            end if
+            if choice == "4" then
+              print command.glasspool(buffer_selection)
+              continue
+            end if
+            if choice == "7" and notftp then 
+              print secure_copy(buffer_selection)
+              continue 
+            end if
+            if choice == "3" then 
+              print command.infil(buffer_selection)
+              continue 
+            end if
+            if choice == "1" then
+              print("Opening a terminal will exit "+CT+colorRed+"5hell"+CT+". Continue? ")
+              if user_input("[<b>Y</b>/n] :>").lower == "n" then continue
+              if typeof(buffer_selection) == "shell" then
+                print(colorWhite+"-ssh---"+buffer_selection.host_computer.public_ip+"-----------"+CT+char(10))
+              else
+                print(colorWhite+"-ftp---"+buffer_selection.host_computer.public_ip+"-----------"+CT+char(10))
+              end if
+              //get_custom_object.return_value = "#!#CASCADE#!#"
+              buffer_selection.start_terminal
+              continue
+            end if
+            if choice == "2" then 
+              if notftp then
+                if user_input("Redirect shell to internal ssh/ftp? [<b>Y</b>/n] :> ").lower != "n" then secure_connect(buffer_selection)
+              else 
+                print secure_copy(buffer_selection)
+              end if
+              continue
+            end if
+          end while
+          continue
+        end if // end shell handler
+        // generic object handler
+        //if @buffer_selection.hasIndex("__isa") then
+          print "Expanding: "+typeof(@buffer_selection)+"..."
+          print "["+colorWhite+"c"+CT+"] add to custom object"
+          print "["+colorWhite+"d"+CT+"] send to decompiler"
+          uip = user_input("(anything else = quit) :>")
+          if uip == "d" then 
+            print(globals.decompiler(@buffer_selection))
+            continue 
+          end if
+          if uip == "c" then print command.cob("set",user_input("cob: set key to:> "),@buffer_selection)
+          continue 
+        //end if
+      end if
+      continue
+    end if  // end option 5
+    if waitFor == "6" then
+      print command.air
+      continue
+    end if
+    if waitFor == "7" or waitFor == "LeftArrow" or waitFor.lower == "q" then
+      print("Memory_Alpha: exiting...")
+      return
+    end if
+    if waitFor == "8" then
+      print("<size=75%>Showing processes...")
+      print command.ps
+      continue
+    end if
+    if waitFor == "9" then
+      print("<size=75%>Showing processes... (dessions cannot be killed)")
+      p_buf = localmachine.show_procs.split(char(10))
+      if DEBUG then print "debug: "+p_buf
+      print command.ps
+      k_tar = user_input("Enter target process ID or name to kill (<<b>enter</b>>=abort)"+char(10)+":> ")
+      processes = []
+      processes = p_buf
+      for p in processes
+        process = p.split(" ")
+        process_ID = process[1]
+        process_CMD = process[4]
+        process_user = process[0]
+        if process_CMD == k_tar or process_ID == k_tar.to_int then
+          print("rip: " + process_ID + " " + process_CMD)
+          catch = localmachine.close_program(process_ID.to_int)
+          print(catch)
+        end if
+      end for
+    end if // end option 9
+  end while
+end function
+///////////////////////////////////// END MEMORY ALPHA ///////////////////////////
+
+globals.newtree = function(a_file,quiet=0)
+  if typeof(a_file) != "file" then return "tree: invalid type"
+  system_map = {}
+
+  listFiles = function(f)
+      if f.is_folder then
+          folders = f.get_folders
+          files = f.get_files
+          system_map[f.path] = [f]+files
+          for folder in folders
+              system_map[folder.path] = [folder]+folder.get_files
+              listFiles(folder)
+          end for        
+      end if
+  end function
+
+  listFiles(a_file)
+  output = []
+  outprint = []
+  nb = "</b>"
+  for i in system_map.indexes
+      for f in system_map[i].values
+          s = ""
+          if f.is_symlink then s=colorGold+nb
+          depth = f.path.split("/").len-2
+          if f.path == "/" then 
+            outprint.push( "<size=80%>"+colorDarkBlue+f.path+" "+s+f.permissions )
+            continue
+          end if
+          if f.is_folder then 
+              outprint.push( "<size=80%>"+colorLightBlue+nb+"   "*depth+"<u>|  </u>"+colorLightBlue+s+f.path+" "+f.permissions )
+          else 
+            if f.is_binary then outprint.push( "<size=80%>"+("   "*depth)+colorCyan+nb+"<u>|    </u>"+s+f.path+" "+f.permissions) else outprint.push( "<size=80%>"+"   "*depth+colorWhite+nb+"<u>|    </u>"+s+f.path+" "+f.permissions )
+          end if
+          output.push(f)
+      end for
+  end for
+  //globals.enumerated = output
+  if output.len < 1 then 
+    if quiet then return 0 else return "tree: invalid input: expects folder" 
+  else 
+    if quiet == "2" then return output
+    if quiet != "1" then 
+      if command.hasIndex("enum") then 
+        print command.enum(output) 
+      else 
+        globals.enumerated = output 
+      end if
+    end if
+  end if
+  if quiet != "1" then return outprint.join(char(10))
+  if DEBUG then return system_map
+  return 0
+end function
+
+
+globals.list_files = function(result, grep=null, quiet=0, waitFor=0, depth=0)
+  //grepped_file = "File: " + grep + " not found."
+  //if not quiet then print("Expanding: " + colorLightBlue+result.path)
+  nb = "</b>"
+  if not quiet then 
+    s = ""
+    if result.is_symlink then s=colorGold+nb
+    encis = ""
+    //if globals.crypto and crypto.is_encrypted(result.path) and depth == true then encis = colorOrange+"</b>encrypted" // stub
+    if result.is_binary then 
+      if not result.is_folder then 
+        //s = ""
+        //if result.is_symlink then s="<color=yellow>"
+        //print "<size=80%><color=blue><u>|  </u><color=#00FFFF>"+s+result.permissions+" "+result.path+" "+encis
+        print "<size=80%>"+"   "*(depth-1)+colorCyan+nb+"<u>|    </u>"+s+result.permissions+" "+result.path+" "+encis
+      end if 
+    else 
+      //print   "<size=80%><color=blue><u>|  </u><color=white>"+  s+result.permissions+" "+result.path+" "+encis
+      print  "<size=80%>"+"   "*(depth-1)+colorWhite+nb+"<u>|    </u>"+s+result.permissions+" "+result.path+" "+encis
+    end if
+  end if
+  if not result.is_binary then
+    //if not quiet then print("<size=80%>"+colorWhite+result.name + " " + result.permissions)
+    if result.name == grep or result.name == "passwd" or result.name == "Bank.txt" or result.name == "Map.conf" or result.name == "Browser.txt" or result.name == "Mail.txt" then
+      if not result.is_binary  then
+        if not quiet then print "<size=75%>"+result.get_content
+      else
+        if not quiet then print("<size=75%>Unable to open binary file. ")
+      end if
+      if result.name == "passwd" or result.name == "Bank.txt" or result.name == "Mail.txt" or result.name == grep then
+        if not waitFor then waitFor = "R"//user_input("Crack files? [r/y/N]||: ",0,1)
+        if waitFor == "y" or waitFor == "Y" then
+          if result.has_permission("r") then command.gopher(result.get_content)
+        end if
+        if waitFor == "r" or waitFor == "R" then
+          cont = result.get_content
+          if cont then cont = cont.split(char(10))
+          for c in cont
+            if not globals.T_BUF.indexOf(c) >= 0 then  
+              globals.T_BUF.push(c)
+              print(colorLightBlue+"<size=75%>Sent: "+result.get_content+" to t<b>r</b>ansmission buffer (<b>@tbuf</b>).</size>")
+            else 
+              print(colorLightBlue+"<size=75%>Skipping duplicates...")
+            end if
+          end for
+        end if
+        if result.name == grep then
+          globals.grepped_file = result
+        end if
+      end if
+    end if
+  else
+    if result.is_folder then
+      if result.name == grep then
+        globals.grepped_file = result
+      end if
+      folders = result.get_folders
+      files = result.get_files
+      //wait(.1)
+      for folder in folders
+        //if not quiet then print("Dir: " + folder.name + " " + folder.permissions)
+        //if not quiet then print "<size=85%><b><color=#2382FFFF>"+folder.permissions+" "+folder.path
+        if not quiet then print "<size=80%>"+colorLightBlue+nb+"   "*depth+"<u>|  </u>"+colorLightBlue+s+folder.permissions+" "+folder.path
+        list_files(folder, grep, quiet, waitFor,depth+1)
+      end for
+      for file in files
+        list_files(file, grep, quiet, waitFor,depth+1)
+      end for
+    else
+      if result.name == grep then
+        globals.grepped_file = result
+      end if
+    end if
+  end if
+  //return grepped_file
+end function
+
+globals.rclean = function(arg1, arg2=0)
+  t_file = null
+  detection_factor = 0
+  if DEBUG then print "debug: arg1: "+arg1+ "arg2: "+arg2
+  remote_clean = function(f,d=0) // file object, bool 0|1
+    if typeof(f) != "file" then return "Error. Expected file got: "+f
+    if not f.has_permission("r") then return "Error: scrub failed. no read permissions."
+    catch = colorRed+"Log wipe failed."+CT
+    rooting = true
+    while rooting
+      if f.name != "/" then
+        f = f.parent
+      else
+        rooting = false
+      end if
+    end while
+    log = null
+    sys = null
+    log = command.tree(f, "system.log", 1, "N")
+    sys = command.tree(f, "silentclean", 1, "N") 
+    if not log then return "rclean: system.log not found. aborting."
+    if not log.has_permission("w") then return "rclean: cannot write to /var/system.log: permission denied"
+    if DEBUG then print "debug: log is a "+typeof(log)+char(10)+"debug: sys is a "+typeof(sys)
+    if typeof(sys) != "file" or d == "-d" or d == "-n" then sys = command.tree(f, "xorg.conf", 1, "N")
+    if typeof(sys) != "file" then  
+      print "rclean: could not find a file named silentclean or xorg.conf on system" 
+      sys = command.tree(f,user_input("rclean: "+colorCyan+"please enter a filename that exists on the system"+char(10)+"-- rclean will use this file for scrubbing"+char(10)+"(q=quit) FileName:> "),1,"N")
+      if not sys then return "rclean: failed: no scrub file"
+    end if
+    if d == "-d" or d == "-n" then 
+      if DEBUG then print "d: "+d+" is a "+typeof(d)
+      if sys.name == "silentclean" then sys.move("/var","silentclean")
+      kit = command.tree(f,"rkit", 1,"N")
+      if not kit then kit = command.tree(f,"5hell",1,"N")
+      if not kit then print "rclean: "+colorOrange+" could not find rootkit or 5hell"
+      if kit and kit.has_permission("w") then 
+        kit.delete 
+        detection_factor = detection_factor + 1 
+        print "rclean: rkit/5hell deleted"+char(10)+"[<color=red>detection_factor: "+detection_factor+"</color>]"
+      else 
+        print colorRed+"rclean: cannot delete rkit/5hell: permission denied"
+      end if
+      if d == "-n" then 
+        print "rclean: "+colorRed+"nuking filesystem..."
+        boot = command.tree(f,"boot",1,"N")
+        lib_fold = command.tree(f,"lib",1,"N")
+        if typeof(boot) == "file" then 
+            if boot.has_permission("w") then 
+              print "deleting: /boot"
+              boot.delete
+              detection_factor = detection_factor + 1
+              print "[<color=red>detection_factor: "+detection_factor+"</color>]"
+            else 
+              print colorRed+"rclean: could not delete /boot: permission denied!"
+            end if
+        else 
+          print colorRed+"rclean: could not locate /boot"
+        end if
+        if lib_fold and typeof(lib_fold) == "file" then 
+          if lib_fold.has_permission("w") then 
+            lib_fold.delete
+            detection_factor = detection_factor + 1
+            print "[<color=red>detection_factor: "+detection_factor+"</color>]"
+          else 
+            print colorRed+"rclean: could not delete /lib: permission denied!"
+          end if
+        else
+          print colorRed+"rclean: could not locate /lib"
+        end if
+      end if
+    end if
+    print("<b>Scrubbing log...</b>")
+    catch = colorRed+"rclean: failed:</b>the scrub file was removed too early!"
+    if sys then 
+      if sys.name == "silentclean" then 
+        print "rclean: found file named silentclean"+char(10)+"-- using: "+sys.path+" as log replacement"
+        catch = sys.copy("/var","system.log") 
+      else 
+        catch = sys.copy("/var", "system.log")
+      end if
+    end if
+    if catch == 1 then 
+      detection_factor = 0
+      print "[<color=red>detection_factor: "+detection_factor+"</color>]"
+      return "rclean: "+colorGreen+"Log Scrubbed..."
+    else 
+      return colorRed+"rclean: failed: "+catch+char(10)+colorRed+"WARNING: we left "+ detection_factor + " log entries!"
+    end if
+  end function
+  if typeof(arg1) == "list" then arg1 = arg1[0]
+  if typeof(arg1) == "shell" or typeof(arg1) == "ftpshell" then // arg2 is shell, not called by user
+    t_shell = arg1
+    t_file = t_shell.host_computer.File("/")
+  else
+    if typeof(arg1) == "computer" then
+      t_comp = arg1
+      t_file = t_comp.File("/")
+    else
+      if typeof(arg1) == "file" then
+        t_file = arg1
+      end if
+    end if
+  end if
+  if t_file then return remote_clean(t_file,arg2)
+  return colorRed+"Error. Wipe failed."
+end function
+
+globals.lan_probe = function(router,mode="local") // expects router object, returns string
+  //t = time
+  _local = function()
+    total = []
+    layer1 = get_router.devices_lan_ip
+    total = layer1
+    hold = []
+    for ip in layer1
+      if typeof(get_router(ip)) == "router" then hold.push(ip)
+    end for
+    for h in hold
+      d = get_router(h).devices_lan_ip
+      for e in d
+        if total.indexOf(e) == null then total.push(e)
+      end for
+    end for
+    return total.sort.join(char(10))
+  end function 
+  _remote = function(rtr)
+    return rtr.devices_lan_ip.sort.join(char(10))
+  end function
+  if mode == "remote" then return _remote(router) else return _local
+end function
+
+r_hecks = function()
+
+  configure_heist = function()
+    if XPLOITS == null or XPLOITS == [] then; print "Scan a lib or link a db first.";return;end if
+    print(colorGold+"Configuring Heist: "+CT+char(10))
+    memory = []
+    data = ""
+    i = 1
+    for x in globals.XPLOITS
+      data =  data + "[" + i + "]" + x + "\n"
+      i = i + 1
+    end for
+    print(format_columns(data))
+    waitFor = user_input("Select an exploit #: ").val
+    if waitFor == 0 then
+      return 0
+    else
+      if waitFor > 0 and waitFor <= XPLOITS.len then
+        memory = XPLOITS[waitFor - 1].split(" ")
+      else
+        print "Invalid selection. "
+        return
+      end if
+    end if
+    m = memory.pull
+    v = memory.pull
+    l = null
+    if globals.metaLib then
+      l = globals.metaLib.version
+    else
+      print("No metaLib seed detected. Enter version number (this will be automated in the future): ")
+      l = user_input("version# (eg:> 1.0.1) "+char(10)+":> ")
+    end if
+    ip = command.ipfit
+    if typeof(ip) == "list" then ip = ip.join(char(10))
+    psw = user_input("Bridge password: (leave blank to crack locally)", 1)
+    if psw == "" or psw == " " then psw = 0
+    ptt = globals.targetPort
+    if ptt == "router" then ptt = 0
+    tool = 0
+    if not psw then tool = user_input("[<b>0</b>] Gopher [1] Hashim (q=quit)||: ",0,1)
+    if tool.lower == "q" then; print "aborting...";return;end if
+    if tool.to_int == 1 then
+      if not localmachine.File("/root/tables/t5") then; print "/root/tables/t5 not found. use<b> pwgen hash </b> to generate.";return;end if
+      print("Deciphering with Hashim.")
+      tool = 1
+    else
+      print("Deciphering with Gopher")
+      tool = 0
+      if not globals.BIGBRAIN then
+        print("Cerebrum inactive. Would you like to run command.cerebrum now?  ")
+        if user_input("[Y/n] ||: ",0,1).lower != "n" then command.cerebrum else print("skipping cerebrum...")
+      end if
+    end if
+    print(colorGold+"*"+CT+char(10)+command.clipb(i))
+    return bank_heist(m, v, l, ip.split(char(10)), psw, ptt, tool)
+  end function
+
+  bank_heist = function(mem, val, lib_v, ip_list, pw, port=0, t=0)
+    for ip in ip_list
+      if port == 0 then
+        if not get_router(ip) then continue
+        if get_router(ip).kernel_version != lib_v then
+          print("Target library not found at "+ip+": Skipping. (no connection was made)")
+          continue
+        end if
+      end if
+      globals.net_session = null
+      globals.net_session = metaxploit.net_use( ip , port )
+      if not globals.net_session then continue
+      globals.metaLib = globals.net_session.dump_lib
+      if metaLib.version != lib_v then
+        print(metaLib.lib_name + " v " + metaLib.version + " does not match target library. Skipping (<b>we left a connection log behind!</b>).")
+        continue
+      end if
+      c_list = [ip]
+      if port == 0 then c_list = command.lanpro(ip)
+      for c in c_list
+        result = null
+        home = null
+        print
+        result = globals.metaLib.overflow(mem, val, c) // overflow
+        if not result then continue
+        print(colorLightBlue+"["+colorWhite+ip+"</b>:<b>"+c+CT+colorLightBlue+"]"+CT)
+        print("Hooked: "+typeof(result))
+        globals.BUFFER.push(result)
+        globals.grepped_file = null
+        if typeof(result) == "computer" then home = result.File("/home")
+        if typeof(result) == "shell" then
+          home = result.host_computer.File("/home")
+          result = result.host_computer
+        end if
+        if typeof(result) == "file" then
+          home = result
+          while home.name != "/"
+            home = home.parent
+          end while
+          list_files(home, "home", 1, "N")
+          home = globals.grepped_file
+        end if
+        if home and result then
+          print(home.name+" "+home.permissions)
+          folders = home.get_folders
+          for f in folders
+            if f.name == "guest" then continue
+            print(f.name + " " + f.permissions)
+            globals.grepped_file = null
+            wait(.1)
+            list_files(f, "Bank.txt", 1, "N") //result.File(f.path+"/Config/Bank.txt")
+            bank = globals.grepped_file
+            if bank then print(bank.path + " " + bank.permissions)
+            if typeof(bank) != "file" then continue
+            if bank.has_permission("r") and bank.get_content != "" then
+              globals.T_BUF.push(bank.get_content.trim)
+              print(colorGreen+bank.get_content+CT)
+            else
+              print(colorOrange+"Bank.txt empty or unreadable."+CT)
+            end if
+          end for
+          globals.T_BUF.push("["+c+"@"+ip+"]")
+        end if
+        print(rclean(result))
+      end for
+      wait(1)
+      if pw != 0 then
+        print("Preparing transmission...")
+        transmit(globals.T_BUF.join(char(10)), pw)
+      else
+        print("Hashing...")
+        globals.localmachine.touch(currentPath, "pass")
+        pass = globals.localmachine.File(currentPath+"/pass")
+        if not pass then return "Check write permissions."
+        pass.set_content("")
+        pass.set_content(globals.T_BUF.join(char(10)))
+        globals.T_BUF = [(localip+"@"+pubip)]
+        //globals.T_BUF = []
+        if t then
+          command.hashim("false")
+        else
+          globals.Gopher(pass)
+        end if
+      end if
+      wait(1)
+    end for
+    return 1
+  end function
+
+  rmenu = function()
+    while true
+      print colorGold+"- - - - - - - - - - - - - - - - - - -"+char(10)
+      print colorGold+"Router: "+CT+localmachine.public_ip+colorGold+" : "+CT+ localmachine.local_ip
+      print colorGold+"////////////////////////////////////"
+      print colorGold+"[0]"+CT+colorGreen+" - <u>Go Back</u> Nothing to see here."
+      print colorGold+"[1]"+CT+colorGreen+" - Bank Heist"
+      print colorGold+"[2]"+CT+colorGreen+" - LAN Probe"
+      print colorGold+"////////////////////////////////////"
+      menu = user_input("(q=quit)||: ",0,1)
+      if menu == "0" or menu.lower == "q" or menu == "" then return
+      if menu == "1" then return configure_heist
+      if menu == "2" then
+        targip = user_input("Router ip: ")
+        print "<b>Scanning...</b> "
+        if is_valid_ip(targip) then
+          print command.lanpro(targip)
+        else
+          print command.lanpro(0)
+        end if
+      end if
+    end while
+  end function
+  rmenu
+  return 0
+end function
+
+// let's rewrite this to be a little more intuitive in form and function
+globals.shell_prompt = function(passShell, waitFor=null)
+  if typeof(passShell) == "shell" then
+    waitFor = user_input("Open shell? [c/y/N] "+char(10)+"||: ",0,1)
+    
+    if waitFor.lower == "y" then
+      if globals.GLASSPOOL then
+        print("Opening shell: "+passShell.host_computer.local_ip+"@"+passShell.host_computer.public_ip+"...")
+        //get_custom_object.return_value = "#!#CASCADE#!#"
+        passShell.start_terminal
+        //globals.update_path
+        return 0
+      else
+        print("Piping shell connection...")
+        //get_custom_object.return_value = "#!#CASCADE#!#"
+        passShell.start_terminal
+        //print(colorWhite+"Terminal session queued. Exit 5hell manually to begin.") //  shouldn't need this anymore
+        //globals.update_path
+        return 0
+      end if
+    else
+      if waitFor == "c" then
+        if globals.GLASSPOOL then
+          print("Piping glasspool shell...")
+          secure_connect(passShell)
+        else
+          print("Getting credentialed shell for: ")
+          c_shell = get_shell(user_input("user:> "), user_input("pass:> ", 1))
+          if c_shell then
+            globals.BUFFER.push(c_shell)
+            ch = user_input("New shell sent to BUFFER. Open it? [y/N] ")
+            if ch.lower == "y" then 
+              //get_custom_object.return_value = "#!#CASCADE#!#"
+              return c_shell.start_terminal
+            end if
+          else
+            print("Failed to open shell. Check credentials and try again.")
+          end if
+        end if
+      end if
+    end if
+  else
+    if globals.GLASSPOOL then
+      //return colorOrange+"Psudo: GLASSPOOL is active. Please run psudo without params."+CT
+      print(colorLightBlue+"GLASSPOOL: "+colorOrange+"deactivating."+CT)
+      globals.shell = get_shell
+      globals.localmachine = globals.shell.host_computer
+      globals.GLASSPOOL = globals.GLASSPOOL - 1
+      globals.update_path
+      return globals.shell
+    end if
+    try = null
+    if typeof(passShell) == "string" then try = get_shell("root", passShell)
+    if typeof(try) == "shell" then
+      globals.BUFFER.push(try)
+      ch = user_input(colorLightBlue+"malp:</b> new shell sent to "+colorOrange+"BUFFER"+char(10)+colorLightBlue+"-- open object in "+colorOrange+"</b>malp? [y/<b>N</b>] ||: ",0,1)
+      if ch.lower != "y" then return try else return globals.memory_alpha(str(globals.BUFFER.len - 1))
+    end if
+    if try then print(try)
+    if DEBUG then print "passShell is a: "+typeof(passShell)
+    return "psudo:"+colorRed+"</b> incorrect parameters:"+char(10)+"-- expected shell object or <b>correct</b> password"
+  end if
+  return 0
+end function
+
+// stub for the future
+globals._shell_prompt = function( input_shell=null, confirm=null, uu=null, pw=null )
+  if typeof(input_shell) != "shell" then return "psudo: expected shell, got: "+typeof(input_shell)
+  
+  // menu
+  if not confirm or confirm == "-m" then 
+    // display options
+    print colorGold+"</b>psudo: "+CT+"["+colorWhite+"y</b>|<b>l"+CT+"] open shell; aka run start_terminal on this shell object"
+    print colorGold+"</b>psudo: "+CT+"["+colorWhite+"u"+CT+"] BUFFER a <b>local</b> user shell with credentials"
+    print colorGold+"</b>psudo: "+CT+"["+colorWhite+"s"+CT+"] BUFFER a <b>local</b> root shell with credentials"
+    print "-- press any other key to abort"
+    confirm = user_input(colorWhite+"||: "+colorGold+"</b>").lower
+    if "ylus".indexOf(confirm) == null then return "psudo: aborting..."
+  end if
+  // handle options
+    
+  if confirm == "y" or confirm == "-y" or confirm == "-l" or confirm == "l" then 
+    print colorGold+"</b>psudo: "+CT+" runnning start_terminal on this shell connection"+char(10)
+    ///et_custom_object.return_value = "#!#CASCADE#!#"
+    return input_shell.start_terminal
+    // print colorGold+"psudo:"+colorOrange+" Attention: if you are seeing this message:"+char(10)+
+    // colorOrange+"</b>-- A game anomoly has kept the script running"+char(10)+
+    // colorOrange+"</b>-- despite having used start_terminal."+char(10)+
+    // colorOrange+"</b>-- You will need to manually exit out of 5hell to start the terminal."+char(10)+
+    // colorOrange+"</b>-- Note: you must exit; do not use ctrl+c"
+    // exit "This is a game bug, not mine."
+    // return 0
+  end if
+
+  if confirm == "u" or confirm == "-u" or confirm == "s" or confirm == "-s" then 
+    if globals.GLASSPOOL then
+      print("psudo: starting terminal on glasspool shell...")
+      secure_connect(passShell)
+    else
+      uu = null
+      if confirm == "-s" or confirm == "s" then uu = "root" 
+      if not uu then 
+        print("Get credentialed shell for what user? (leave blank to abort): ")
+        uu = user_input("user_name:> <b>")
+      else 
+        print("Getting root shell...")
+      end if
+      if uu == "" then return "aborting..."
+      if not pw then pw = user_input(uu+" password:> <b>",1)
+      if pw == "" then return "aborting..."
+      c_shell = get_shell(uu,pw)
+      if typeof(c_shell) == "shell" then 
+        if ch == "y" then exit globals._shell_prompt(c_shell,"-l")
+        globals.BUFFER.push(c_shell)
+        print colorLightBlue+"malp:</b> new shell sent to "+colorOrange+"BUFFER"
+        if ch != "-m" then ch = user_input(colorLightBlue+"-- open object in "+colorOrange+"</b>malp? [y/<b>N</b>] ||: ",0,1)
+        if ch.lower != "y" then return c_shell else return globals.memory_alpha(str(globals.BUFFER.len - 1))
+
+      else
+        return(colorGold+"psudo: "+CT+"failed to open shell"+char(10)+"-- check credentials and try again")
+      end if
+    end if
+  end if
+
+  return "psudo: aborting..."
+end function
+// handle computer objects
+globals.hooked_comp = function(result)
+  logfile = result.File("/var/system.log")
+  passfile = result.File("/etc/passwd")
+  homefolder = result.File("/home")
+  lib_ssh_file = result.File("/lib/libssh.so")
+  ssh_spoof = localmachine.File("/root/rkit/silentclean")
+  hooking = true
+
+  while hooking
+    print(colorWhite+"<u>=============================</u>"+CT)
+    print(format_columns(result.show_procs))
+    print("["+checkUser(result)+":"+typeof(result)+"] "+char(10)+colorWhite+"</b>"+result.local_ip+" @ "+result.public_ip+CT)
+    n_d = result.network_devices.trim.replace(char(10),", ")
+    if n_d == "" then print(colorWhite+"</b>[Router]</color>") else print(colorWhite+"</b>"+n_d+CT)
+    ports = result.get_ports
+    p_i = []
+    for p in ports
+      if p == "" then continue
+      p_i.push(colorWhite+"</b>[" + p.port_number + "] ")
+      try = get_router(result.public_ip).port_info(p)
+      if try then p_i[-1] = p_i[-1] + try
+    end for
+
+    if p_i.len >= 1 then print(p_i.join(char(10))) else print(colorWhite+"<size=75%>[no port info to display]</size>"+CT)
+    print colorWhite+"<size=75%><u>=============================
+[K] - kill [G] - glassp [C] curl
+[7] iwlist [8] iwconfig [9] chUnlock
+[4] chngpw [5] sclean   [6] useradd
+[1] home   [2] passfile [3] dump tbuf"
+    if globals.T_BUF.len > 1 then print "[T] transmit tbuf       [-] decipher tbuf"
+    pause = user_input("[0|q] quit [d] decompiler ||: ",0,1)
+    // replace the following with a _switch
+    if pause == "d" then 
+      print(globals.decompiler(result))
+      continue
+    end if
+    if pause == "0" or pause.lower == "q" then hooking = false
+    if pause.lower == "k" then print(result.close_program(user_input(colorWhite+"pid to kill:> "+CT).to_int ) )
+    if pause.lower == "g" then print command.glasspool(result)
+    if pause.lower == "c" then print( globals.curl(result) )
+    if pause.lower == "t" then print command.transmit("1")
+    if pause == "-" then 
+      print command.gopher(globals.T_BUF)
+      globals.T_BUF = [(localip+"@"+pubip)]
+    end if
+    if pause == "1" then
+      if homefolder then list_files(homefolder)
+    end if
+    if pause == "2" then
+      if passfile then
+        list_files(passfile)
+      else
+        print("Error: file /etc/passwd not found")
+      end if
+    end if
+    if pause == "3" then command.tdump
+    if pause == "4" then
+      user = user_input("Changing password for user (default: root): ")
+      if user == "" or user == " " or user == null then user = "root"
+      print("Enter (a) non-alpha_numeric character(s) to abort. (will return error, just ignore)")
+      pass = user_input("New password (default: pass): ", 1, 0)
+      if pass == "" or pass == " " or pass == null then pass = "pass"
+      catch = result.change_password(user, pass )
+      if catch then print(catch)
+    end if
+    if pause == "5" then
+      if not logfile then
+        print("/var/system.log not found")
+        continue
+      end if
+      catch = result.touch("/var","system.bak")
+      print(catch)
+      catch = null
+      syslogbak = result.File("/var/system.bak")
+      if syslogbak then
+        logfile.chmod("o+rw")
+        catch = logfile.delete
+        print(catch)
+        syslogbak.set_content("No IPs Today :D")
+        catch = syslogbak.move("/var", "system.log")
+      else
+        print(colorRed+"Failed to spoof log ["+catch+"]. We are not root.")
+      end if
+      if catch then
+        print("<b>["+catch+"] /var/system.log spoofed if [1]</b> else failed.")
+      end if
+    end if // end option 5
+    if pause == "6" then
+      r = range(1,9)
+      r.shuffle
+      sparky = "sparky"+str(r.pull)+str(r.pull)
+      spark = result.create_user(sparky, "passwd")
+      print(sparky + "status [" + spark + "]")
+    end if
+    if pause == "7" then
+      print(colorWhite+"<size=50%><u>launching mitm attack... attempting to filter networks...</u></size>")
+      nets = null
+      if result.is_network_active and result.active_net_card == "WIFI" then nets = result.wifi_networks("wlan0") else print(colorRed + "Wifi card is disabled!" + CT)
+      for n in nets
+        print(n)
+      end for
+    end if
+    if pause == "8" then
+      interface = user_input("[0] abort [1] wifi [2] ethernet ||: ",0,1)
+      if interface == "0" then continue
+      if interface == "1" then
+        if result.is_network_active and result.active_net_card == "WIFI" then 
+          nets = result.wifi_networks("wlan0") 
+        else 
+          print(colorRed + "Wifi card is disabled!" + CT)
+          continue 
+        end if
+        i = 0
+        for n in nets
+          print("["+i+"]"+n)
+          i = i + 1
+        end for
+        net_choice = user_input("select a network:> ").to_int
+        if typeof(net_choice) != "number" or net_choice < 0 or net_choice >= nets.len then continue
+        bssid = nets[net_choice].split(" ")[0]
+        essid = nets[net_choice].split(" ")[2]
+        netpass = user_input("network key (@brutus for dicttionary attack): "+char(10)+":> ")
+        if netpass == "@brutus" then
+          for d in dict_a
+            if result.connect_wifi("wlan0",bssid,essid,d) == 1 then
+              print("Connection swapped to "+essid)
+              continue
+            end if
+            print("Failed to swap connection. Key not found.")
+          end for
+        else
+          print(result.connect_wifi("wlan0",bssid,essid,netpass))
+        end if
+      end if
+      if interface == "2" then
+        gateway = user_input("enter gateway ip:> ")
+        if gateway == "" then gateway = result.network_gateway
+        new_ip = user_input("enter new ip:> ")
+        if new_ip == "" or not is_valid_ip(new_ip) then
+          print("aborting...")
+          continue
+        else
+          result.connect_ethernet("eth0", new_ip, gateway)
+        end if
+      end if
+    end if
+    if pause == "9" then
+      try = result.File("/")
+      try.chmod("o+rwx",1)
+      try.chmod("g+rwx",1)
+      try.chmod("u+rwx",1)
+      if try.has_permission("w") then print("<b>Unlocked</b>") else print("Access<b> Denied</b>.")
+    end if
+  end while
+end function
+
+secure_connect = function(shll)
+  secure_port = targetPort
+  secure_ip = targetIP
+  waitFor = user_input("Connect on port 22? [Y/n]||: ",0,1)
+  if waitFor.lower == "n" then secure_port = user_input("enter port:> ").to_int else secure_port = 22
+  if secure_port < 1 or typeof(secure_port) != "number" then
+    print("Error: invalid port for secure connect.")
+    return 0
+  end if
+  print("target: "+targetIP)
+  if is_lan_ip(globals.targetIP) then 
+    secure_ip = user_input("Enter target ip (<<b>enter</b>>="+targetIP+", non-ip=abort)"+char(10)+":> ")
+    if secure_ip == "" then secure_ip = targetIP
+  else
+    secure_ip = user_input("Enter target ip (non-ip=abort):> ")
+  end if
+  if not is_valid_ip(secure_ip) then return 0
+
+  userName = user_input("Enter remote user name (<<b>enter</b>>=root, -q=quit):> ")
+  if userName == "" then userName = "root"
+  passWd = user_input("Enter remote user password (-brutus=dictionary attack, <<b>enter</b>>=quit):> ")
+  if passWd == "" then return 0
+  print(colorWhite+"--ssh------------------------"+CT)
+  remote = null
+  if passWd == "-brutus" then
+    print("<b>running dictionary attack...</b>")
+    for d in dict_a
+      remote = shll.connect_service(secure_ip, secure_port, userName, d)
+      if typeof(remote) == "shell" or typeof(remote) == "ftpshell" then break
+    end for
+  else
+    if passWd != "" then remote = shll.connect_service(secure_ip, secure_port, userName, passWd)
+  end if
+  print("<b>Connecting</b>... ")
+  if typeof(remote) == "shell" or typeof(remote) == "ftpshell" then
+    globals.BUFFER.push(remote)
+    print "sending new shell to BUFFER..."+char(10)+"make a selection:"
+    print(            "[4] glasspool ")
+    todo = user_input("[1] run [2] start terminal [3] scp"+char(10)+"[0|q] quit ||: ",0,1)
+    if todo == "2" then
+      //get_custom_object.return_value = "#!#CASCADE#!#"
+      return remote.start_terminal
+    end if
+    if todo == "0" then
+      print "aborting..."
+      return 0
+    end if
+    if todo == "1" then
+      a = user_input("command path:> ")
+      b = user_input("parameters:> ")
+      globals.stack_pool("up")
+      print remote.launch(a, b)
+      //_cascade // exit if cascade
+      globals.stack_pool("down")
+    end if
+    if todo == "3" then
+      secure_copy(remote)
+      BUFFER.push(remote)
+    end if
+    if todo == "4" then
+      print(colorLightBlue+"Initializing sshfs glasspool protocol..."+CT)
+      hold_shell = globals.shell
+      globals.shell = remote
+      globals.localmachine = remote.host_computer
+      if currentPath and homePath then
+        globals.GLASSPOOL = globals.GLASSPOOL + 1
+        print(colorWhite+"...glasspool initialization successful. "+char(10)+colorOrange+"Type <u>return</b> to deactivate (exit or quit to terminate program)"+CT)
+        if typeof(shell) == "ftpshell" then print(colorOrange+"Warning: many commands will not work with ftpshells!"+CT)
+        command.shell
+        globals.shell = hold_shell
+        globals.localmachine = globals.shell.host_computer
+        globals.GLASSPOOL = globals.GLASSPOOL - 1
+        globals.update_path
+        return colorLightBlue+"GLASSPOOL: "+colorOrange+"deactivating..."+CT
+      end if
+      return colorOrange+"...glasspool failed to initialize. Check permissions. And current path."+CT
+    end if
+  else
+    print("Unable to establish connection.")
+  end if
+end function
+
+globals.select_attack = function(waitFor=0,inject=0,ret=0)
+  if not metaLib then return "Link metaLib before continuing."
+  memory = []
+  custom_mem = ""
+  custom_exploit = ""
+  exploit = ""
+  data = ""
+  i = 1
+  for x in globals.XPLOITS
+    data =  data + "[" + i + "]" + x + "\n"
+    i = i + 1
+  end for
+  print(format_columns(data))
+  if typeof(waitFor) != "string" and typeof(waitFor) != "number" then return "zap: invalid input"
+  if typeof(inject) != "string" and inject != 0 then 
+      print "<size=75%>zap: skipping invalid inject value: "+inject
+      inject = 0
+  end if
+  if typeof(waitFor) == "string" then waitFor = waitFor.to_int
+  if not waitFor then waitFor = user_input("Select an exploit #: ").val
+  if waitFor == 0 then
+    custom_mem = user_input("Enter memory address: ")
+    if custom_mem == "" then return
+    custom_exploit = user_input("Enter overflow: ")
+    if custom_exploit == "" then return
+    memory = [custom_mem , custom_exploit]
+  else
+    if waitFor > 0 and waitFor <= globals.XPLOITS.len then
+      memory = globals.XPLOITS[waitFor - 1].split(" ")
+    else
+      print("Invalid selection. ")
+      return
+    end if
+  end if
+  mem = memory.pull
+  exploit = memory.pull
+  if not inject then inject = user_input(colorGold+"Enter ip or passwd for inject value or leave blank (press<b> return</b>)"+char(10)+":> ")
+  print("Injecting address: " + mem + " with " + exploit +" "+ inject)
+  result = metaLib.overflow(mem, exploit, inject)
+  if result then 
+    globals.BUFFER.push(result) // buffer result before handling it
+    print colorRed+"</b>zap:"+colorWhite+" sending <b>"+result+"</b> to "+colorOrange+"BUFFER"
+  end if
+  if typeof(result) == "shell" and not ret then
+    ob = user_input(colorWhite+"</b>-- open shell in "+colorOrange+"BUFFER"+CT+"? ["+colorOrange+"Y"+CT+"/n]"+char(10)+"||: ",0,1)
+    if ob.lower == "n" then print colorRed+"</b>zap: "+colorWhite+"</b> returning... " else return globals.memory_alpha(true,"-1")
+    return result
+  end if
+  if typeof(result) == "computer" and not ret then
+    print("Obtained " + result)
+    hooked_comp(result)
+  end if
+  if typeof(result) == "file" and not ret then
+    print("Obtained " + result)
+    list_files(result.parent)
+  end if
+  //if result then  globals.BUFFER.push(result)
+  print("-- returning... ")
+  return result
+end function
+
+roil = function(inject=0)
+  if not metaLib then return
+  if globals.XPLOITS.len < 1 then
+    print("No xploits found.")
+    return
+  end if
+  print(format_columns(globals.XPLOITS))
+  prompt_me = false
+  if inject == "-p" or inject == "--prompt" then prompt_me = true 
+  if prompt_me then inject = user_input("Enter lan_ip or password for inject value (<<b>enter</b>>=""pass"",q=quit):"+char(10)+":> ")
+  if not inject then inject = ""
+  for X in globals.XPLOITS
+    x = X.split(" ")
+    mem = x[0]
+    val = x[1]
+    result = metaLib.overflow(mem, val, inject)
+    print("Hooked: " + typeof(result) + " with " + mem + " " + val)
+    if result then globals.BUFFER.push(result) // buffer the result before handling it
+    if typeof(result) == "shell" then
+      if prompt_me then shell_prompt(result)
+      print colorGold+"[BUFFERING SHELL]"
+    end if
+    if typeof(result) == "file" then
+      if prompt_me then list_files(result)
+      print colorGreen+"[BUFFERING FILE]"
+    end if
+    if typeof(result) == "computer" then
+      if prompt_me then hooked_comp(result)
+      print colorWhite+"[BUFFERING COMPUTER]"
+    end if
+  end for
+end function
+
+//Depricated function. Use roil.
+zap_it = function()
+  if MEMORY == null then return "Run a scan first."
+  print(format_columns(globals.XPLOITS))
+  inject = user_input("Enter ip or passwd for inject value or leave blank (press<b> return</b>)"+char(10)+":> ")
+  memory = globals.MEMORY
+  for mem in memory
+    address = metaxploit.scan_address(metaLib, mem).split("Unsafe check: ")
+    for add in address
+      if add == address[0] then continue
+      value = add[add.indexOf("<b>")+3:add.indexOf("</b>")]
+      value = value.replace("\n", "")
+      result = metaLib.overflow(mem, value, inject)
+      print("Hooked: " + typeof(result) + " with " + mem + " " + value)
+      if result then  globals.BUFFER.push(result) // buffer the result before handline it
+      if typeof(result) == "shell" then
+        shell_prompt(result)
+      end if
+      if typeof(result) == "file" then
+        list_files(result)
+      end if
+      if typeof(result) == "computer" then
+        hooked_comp(result)
+      end if
+      //if result then  globals.BUFFER.push(result)
+    end for
+  end for
+end function
+
+update_port_info = function()
+  if DEBUG then print("Updating port info..." )
+  globals.portInfo = "???"
+  globals.tarLan = "???"
+  if globals.targetPort == 0 or globals.targetPort == "0" then globals.targetPort = "router"
+  rr = get_router(globals.targetIP)
+  if globals.targetPort == "router" and typeof(rr) == "router" then 
+    if DEBUG then print "debug: target and rr are: "+rr
+    globals.portInfo = "kernel_router "+rr.kernel_version
+    globals.tarLan = rr.local_ip
+    return 0
+  end if
+  if PORT_MAP.hasIndex(globals.targetPort) then
+    if DEBUG then print "-- PORT_MAP["+targetPort+"] exists"
+    globals.portInfo = PORT_MAP[globals.targetPort][2]+" "+PORT_MAP[globals.targetPort][3]
+    globals.tarLan = PORT_MAP[globals.targetPort][-1]
+  else
+    for p in PORT_MAP
+      if p["value"][4] == globals.targetIP and p["value"][0] == globals.targetPort then
+        globals.portInfo = p["value"][2]+" "+p["value"][3]
+        globals.tarLan = globals.targetIP
+      end if
+    end for
+  end if
+  if DEBUG then print "debug: upi: "+char(10)+targetIP+" : "+targetPort+" : "+portInfo+" : "+tarLan
+  return 0
+end function
+
+display_portmap = function(bool_dump=0,pclist=0)
+  port_index = globals.PORT_MAP.indexes
+  display = []
+  cw = colorWhite+"</b>"
+  cr = colorRed+"</b>"
+  cm = colorMagenta+"</b>"
+  co = colorOrange+"</b>"
+  cgr = colorGrey+"</b>"
+  if DEBUG then print "debug: port map: "+PORT_MAP
+
+  is_known = function(lib,ver)
+    if DEBUG then print +"debug: in is_known: lib: "+lib
+    //dat = command.tree("/","database.csv",1,"N")
+    hold_silence = SILENT 
+    globals.SILENT = 2
+    dat = []
+    alldat = command.grep("-a","^database.csv")
+    globals.SILENT = hold_silence
+    if typeof(alldat) != "list" then return 0
+    //if typeof(dat) != "file" or not dat.has_permission("r") then return null 
+    //lib = lib.split(" ")
+    for f in alldat
+      if typeof(f) == "file" and f.has_permission("r") then dat.push(f.get_content)
+    end for
+    dat = dat.join(char(10))
+    if lib == "employees" or lib == "criminals" or lib == "bank" or lib == "students" then lib = "sql"
+    if lib != "router" then lib = "lib"+lib+".so" else lib = "kernel_"+lib+".so"
+    if DEBUG then print "debug: lib: "+lib
+    libver = lib+" v "+ver
+    if DEBUG then print colorWhite+"debug: libver: "+libver
+    //if dat.get_content.split(char(10)).indexOf(libver) != null then return 1 else return 0    
+    if dat.indexOf(libver) != null then return 1 else return 0
+  end function
+
+  for n in port_index
+    if n == 1 then continue
+    if DEBUG then print "debug: n: "+n+", PORT_MAP[n]: "+PORT_MAP[n]
+    if PORT_MAP[n][2] != "-" then ik = is_known(PORT_MAP[n][2],PORT_MAP[n][3]) else ik = colorGreen+"</b>"
+    if ik == null then ik = co
+    if ik == 1 then ik = colorCyan+"</b>" 
+    if ik == 0 then ik = colorGold+"</b>" 
+    if DEBUG then print "debug: ik: "+ik
+    ci = cw
+    if typeof(pclist) == "list" and pclist.indexOf(PORT_MAP[n][4]) == null then ci = cgr
+    pi1 = PORT_MAP[n][2]
+    pi2 = PORT_MAP[n][3]
+    if pi2 == "switch" then ik = cr
+    if pi1 == "unknown" then; ik = cgr;pi1="no";if ci == cgr then pi2 = "machine" else pi2="response";end if
+    cp = colorGreen+"</b>"
+    if PORT_MAP[n][1] == "closed" or PORT_MAP[n][1] == "Firewall" then cp = cr
+    if PORT_MAP[n][0] == "Hardware" then ci = cr
+    stat = PORT_MAP[n][1]
+    if PORT_MAP[n][0] == "8080" or PORT_MAP[n][0] == 8080 then 
+      ci = cm
+      stat = "router"
+      cp = cm
+      if get_switch(PORT_MAP[n][4]) != null then; stat = "switch";cp=cr; end if
+    end if
+    //display = display + (ci+PORT_MAP[n][0] + " " + cp+stat + " " + ik+pi1 + " " + ik+pi2+ " " + ci+PORT_MAP[n][4] + char(10))
+    display.push(ci+PORT_MAP[n][0] + " " + cp+stat + " " + ik+pi1 + " " + ik+pi2+ " " + ci+PORT_MAP[n][4])
+  end for
+
+  update_port_info
+  if bool_dump then return format_columns(display.join(char(10)))
+  print(format_columns(display.join(char(10))))
+  return 0
+end function
+
+make_portmap = function(router, comps, q_bool)
+  services = {}
+  if not q_bool then print("Building port map... <align=center>")
+  services["pNum"] = [ "PORT" , "STATUS" , "SERVICE", "VERSION" , "LAN" ]
+  if DEBUG then print("after pnum")
+  ports = router.used_ports
+  r_lib_v = router.kernel_version
+  services["router"] = [ router.public_ip,  "gateway", "router", r_lib_v, router.local_ip ]
+  if DEBUG then print "debug: obtained port object and router version"
+  for p in ports
+    state = "open"
+    if p.is_closed then state = "closed"
+    if DEBUG then print "debug: port:"+p+" is: "+p.port_number
+    pi = router.port_info(p).split(" ")
+    plp = p.get_lan_ip
+    if DEBUG then print "debug: port info: "+pi+char(10)+"-- port lan ip: "+plp
+    services[p.port_number] = [p.port_number, state , pi[0], pi[1] , plp]
+  end for
+  if DEBUG then print "debug: services mapped"
+  cpl = null
+  services["-"] = ["-","-","-","-","-"]
+  for cip in comps
+    if DEBUG then print "debug: top of loop"+char(10)+"-- attempting router.device_ports("+cip+")"
+    cpl = router.device_ports(cip)
+    if DEBUG then print "--got: "+cpl
+    if typeof(cpl) == "string" then
+      if DEBUG then print "debug: computer port list is a string: firewall detected"
+      services[cip] = ["Hardware", "Firewall", "from","switch", cip]
+    else
+      if DEBUG then print "debug: computer port list is a list:"+cpl
+      for cp in cpl
+        lip = cp.get_lan_ip
+        if DEBUG then print "debug: port.get_lan_ip: "+lip 
+        pn = cp.port_number
+        if DEBUG then print "debug: port.port_number: "+pn
+        rpi = router.port_info(cp).split(" ")      
+        if DEBUG then print "debug: router.port_info("+cp+"): "+rpi+char(10)+"-- "+lip
+        // hack follows
+        sub_pl = router.device_ports(lip)
+        sl=[]
+        for sp in sub_pl
+          if typeof(sp) == "port" then sl.push(sp.port_number)
+        end for
+        if comps.indexOf(lip) != null and sl.indexOf(pn) != null then services[lip+":"+pn] = [pn, "internal", rpi[0], rpi[1], lip]
+      end for
+    end if
+  end for
+  globals.PORT_MAP = services
+  if DEBUG then print "debug: portmap complete, displaying..."
+  display_portmap(q_bool,comps)
+  return 0
+end function
+who_scan = function(tally=15,pause=1,quiet=false) // tally is depricated and no longer used
+  ip = globals.targetIP
+  //tally = 255
+  t_router = null
+  is_switch = false
+  if is_valid_ip(ip) then
+    if not quiet then print(char(10)+"Scanning ip: " + ip)
+    t_router = get_router(ip)
+    if DEBUG then print "debug: t_router is a: "+typeof(t_router)
+    if DEBUG then print "ip is: "+ip
+    if not t_router then
+      if not is_lan_ip(ip) then 
+        print(colorRed+"probe: ip: "+ip+" not found."+CT)
+        return
+      end if
+      if not quiet then print("probe: router not found at: "+colorLightBlue+ip)
+      ip = ip.split("\.")
+      ip[-1] = 1
+      ip = ip.join(".")
+      if not quiet then print("probe: attempting to locate router at: "+char(10)+colorWhite+ip+CT)
+      t_router = get_router( ip )
+      if not t_router then 
+        if not quiet then print(colorRed+"probe: failed to find router\n-- walking subnet until router is found...")
+        t_router = null
+        
+        for lip in range(0,255)
+          ip = ip.split("\.")
+          ip.pop 
+          ip = ip.join(".")
+          ip = ip+"."+lip
+          if DEBUG then print "debug: ip: "+ip
+          t_router = get_router(ip) 
+          if typeof(t_router) == "router" then break 
+        end for
+        if typeof(t_router) != "router" then 
+          print "probe: error, no router found!" 
+          return
+        end if
+      end if
+    end if
+    if not quiet then print(t_router.public_ip + " details:")
+    if not quiet then 
+      globals.last_whois = whois(t_router.public_ip).replace("Neurobox Network",colorCyan+"Neurobox Network"+CT).replace("Email address: ",colorWhite)
+      print globals.last_whois
+    end if
+    if not quiet then print("Getting all reachable computers on " + t_router.local_ip + "'s network...")
+    clist = null
+    if not quiet then print("------------------------")
+    if not quiet then print(colorGreen+"<align=center>(<|>)</align>"+CT)
+    if get_router.public_ip == get_router(ip).public_ip then clist = globals.lan_probe(get_router(ip),"local").split(char(10)) else clist = globals.lan_probe(get_router(ip),"remote").split(char(10))
+    //clist.sort
+    numComps = clist.len
+    globals.brdc = "Broadcasting: "+t_router.essid_name + " : " + t_router.bssid_name
+    if globals.brdc == "Broadcasting:  : " then globals.brdc = "-wifi disabled-"
+    if not quiet then print("Found: " + numComps + " machines connected to: " + t_router.local_ip+char(10)+globals.brdc)
+    if not quiet then 
+      for c in clist 
+        print(colorWhite+c)
+      end for
+    end if
+    if not quiet then print("-----------")
+    if not quiet then print("Firewall Rules:")
+    rlz = t_router.firewall_rules
+    if not quiet then
+      if rlz.len then print(rlz.join(" ")) else print("-none-")
+      print("___")
+    end if
+    make_portmap(t_router, clist, quiet)
+    if pause and not quiet then pause = user_input("Press return to continue...")
+  else
+    if not quiet then print("Host does not exist, or is currently offline.")
+  end if
+  return null
+end function
+
+scan_memory = function()
+  if globals.metaLib then print(metaLib.lib_name + " v " + metaLib.version) else return "metaLib not loaded"
+  scanalysis = []
+  data = ""
+  globals.MEMORY = metaxploit.scan(metaLib)
+  globals.meta_scan = []
+  for mem in MEMORY
+    address = metaxploit.scan_address(metaLib, mem).split("Unsafe check: ")
+    globals.meta_scan.push(address)
+    for add in address
+      if add == address[0] then continue
+      value = add[add.indexOf("<b>")+3:add.indexOf("</b>")]
+      value = value.replace("\n", "")
+      scanalysis.push(mem + " " + value)
+    end for
+  end for
+  for s in scanalysis
+    data = data + s + char(10)
+  end for
+  print(format_columns(data))
+  globals.XPLOITS = scanalysis
+  waitFor = user_input("<b>Press return to continue...</b>")
+  return 0
+end function
+
+load_lib = function(lib_path)
+  if DEBUG then print "load_lib_path: "+lib_path
+  if lib_path.len < 1 then return "aborting..."
+  print "meta: clearing metaLib and net_session..."
+  globals.metaLib = null 
+  globals.net_session = null // clear out net_session since we are working with a local lib
+  new_lib = metaxploit.load(lib_path)
+  if not new_lib then new_lib = metaxploit.load("/lib/"+lib_path)
+  if new_lib then
+    print "metaLib: linking "+colorLightBlue+new_lib.lib_name+"<color=blue> v </color>"+new_lib.version+char(10)
+    globals.metaLib = new_lib
+  else
+    print colorOrange+"load_lib: file not found or not a library "
+    return 0
+  end if
+  //print metaLib.lib_name + " v " + metaLib.version
+  return metaLib.lib_name + " v " + metaLib.version
+end function
+
+get_lib = function(waitFor=0,this_lib=null)
+  address = globals.targetIP
+  port = globals.targetPort
+  if not waitFor then waitFor = user_input(colorOrange+"Establishing Net_Session..."+char(10)+
+  colorOrange+"This will leave a log on servers but not routers. Continue?"+char(10)+
+  "[<b>Y</b> = Link Remote Lib] [<b>l</b> = Link Local Lib Instead] [n = No]"+CT+char(10)+
+  "(<b>enter<b>=Y) ||: ",0,1)
+  if waitFor == "n" or waitFor == "N" then
+    print("Aborting connection...")
+    return "Aborting connection..."
+  else
+    if waitFor == "l" or waitFor == "L" then
+      if this_lib then return load_lib(this_lib)
+      lib_folder = localmachine.File("/lib")
+      if not lib_folder then
+        print("/lib not found!")
+        return "/lib not found!"
+      end if
+      lib_list = lib_folder.get_files
+      i = 0
+      print colorGold+"</b>load_lib: displaying contents of /lib on <u>active shell:"
+      print colorGold+"</b>-- note: if importing a metaxploit object via "+colorWhite+"meta -i"+CT+":"
+      print colorWhite+"</b>--: the list shown may not match the target's actual files"
+      for l in lib_list
+        print(colorGold+"</b>["+colorWhite+i+CT+"] " + l.name)
+        i = i + 1
+      end for
+      selection = user_input(colorGold+"load_lib:"+colorWhite+" </b>select a lib.so to load: "+char(10)+"(q=quit):> ").to_int
+      if selection == "q" then return "aborting..."
+      if selection >= 0 and selection < i then
+        return load_lib(lib_list[selection].path)
+      else
+        print("Invalid selection.")
+      end if
+      return "Invalid selection."
+    end if
+  end if
+  if not localmachine.is_network_active then
+    print(colorOrange+"No network connection!")
+    return "no_network"
+  end if
+  if DEBUG then print "debug: calling net_use"
+  if port == "router" then
+    globals.net_session = metaxploit.net_use( address )
+    if typeof(globals.net_session) == "netsession" then globals.routerLib = globals.net_session.dump_lib else globals.routerLib = null
+  else
+    globals.routerLib = null
+    globals.net_session = metaxploit.net_use( address, port )
+  end if
+  if not globals.net_session then
+    print("Error: can't connect to net session")
+    return "Error: can't connect to net session"
+  end if
+  globals.metaLib = globals.net_session.dump_lib
+  print("metaLib: loaded: "+metaLib.lib_name + " v " + metaLib.version)
+  return (metaLib.lib_name + " v " + metaLib.version)
+end function
+
+set_port = function()
+  if PORT_MAP then display_portmap
+  print("<b>[ " + targetIP + " ] [ " + targetPort + " ]</b>")
+  waitFor = user_input("Enter target port: ")
+  if waitFor.to_int >= 1 then
+    globals.targetPort = waitFor.to_int
+    print("Port changed to: "+globals.targetPort)
+    if globals.targetPort == 8080 and is_valid_ip(globals.targetIP) and not is_lan_ip(globals.targetIP) then
+      print "-- 8080 is internal only"+char(10)+"-- updating targetIp (public ip) to <b>local ip"
+      r = get_router(globals.targetIP)
+      if not r then print "error: router at target ip not found!" else globals.targetIP = r.local_ip
+    end if
+  else
+    print("Invalid port. Defaulting to router.")
+    globals.targetPort = "router"
+  end if
+  update_port_info
+end function
+
+set_ip = function()
+  working = true
+  if PORT_MAP then display_portmap
+  print("[ " + targetIP + " ] [ " + targetPort + " ]")
+  while working
+    globals.targetIP = user_input("\nPress <return> for localhost or\nEnter target IP: ")
+    print(targetIP)
+    if globals.targetIP == "" then
+      globals.targetIP = localmachine.public_ip
+      globals.targetPort = "router"
+      return true
+    end if
+    if is_lan_ip(globals.targetIP) then
+      print("LAN IP")
+      if globals.targetIP[-1] == 1 then
+        debug = "router"
+      else
+        debug = user_input("Enter target port: ").val
+      end if
+      if debug < 1 then
+        print("Defaulting to router.")
+        debug = "router"
+      end if
+      globals.targetPort = debug
+      working = false
+    end if
+    print(targetIP)
+    if working then
+      if is_valid_ip(globals.targetIP) then
+        print("Valid IP")
+        debug = user_input("Enter target port or leave blank for router: ")
+        if debug.val > 1 then
+          globals.targetPort = debug.val
+        else
+          globals.targetPort = "router"
+        end if
+        working = false
+      else
+        print("Invalid IP.")
+      end if
+    end if
+  end while
+  return true
+end function
+
+menu_launcher = function(cursor)
+  if cursor == 0 then
+    memory_alpha
+    return
+  end if
+  if cursor == 1 then
+    if targetIP and targetPort > 1 then
+      secure_connect(shell)
+    else
+      print("Please set valip ip and port for secure session." )
+    end if
+  end if
+  if cursor == 2 then
+    return shell_prompt(shell)// stub, replace with 5hell
+  end if
+  if cursor == 3 then
+    if targetIP then
+      fw_rules
+    else
+      print("Please set target IP")
+      return
+    end if
+  end if
+  if cursor == 4 then
+    print(command.scribus)
+    return
+  end if
+  if cursor == 5 then
+    if T_BUF.len > 1 then
+      transmit(T_BUF.join(char(10)))
+    else
+      print("Error: TBUF empty!")
+    end if
+    return
+  end if
+  if cursor == 6 then
+    print( command.kraken(0) )
+    return
+  end if
+  if cursor == 7 then
+    if targetPort == "router" then return
+    if not targetIP then return
+    print( mail_user_list( targetIP, targetPort ) )
+    return
+  end if
+end function
+
+page_two = function()
+  cursor_position = 0
+  rgb0 = colorRed
+  doing_stuff = true
+  while doing_stuff
+    print
+    print("0001020304050607080900")
+    if cursor_position == 0 then
+      print(rgb0+"0001020.MALP..07080900"+CT)
+    else
+      print("0001020.MALP..07080900")
+    end if
+    if cursor_position == 1 then
+      print(rgb0+"0001020..SSH..07080900"+CT)
+    else
+      print("0001020..SSH..07080900")
+    end if
+    if cursor_position == 2 then
+      print(rgb0+"0001020.SHELL.07080900"+CT)
+    else
+      print("0001020.SHELL.07080900")
+    end if
+    if cursor_position == 3 then
+      print(rgb0+"00010FW.RULES.07080900"+CT)
+    else
+      print("00010FW.RULES.07080900")
+    end if
+    if cursor_position == 4 then
+      print(rgb0+"0001020.SCRIBUS.080900"+CT)
+    else
+      print("0001020.SCRIBUS.080900")
+    end if
+    if cursor_position == 5 then
+      print(rgb0+"0001020.TxBUF.07080900"+CT)
+    else
+      print("0001020.TxBUF.07080900")
+    end if
+    if cursor_position == 6 then
+      print(rgb0+"0001020.KRAKEN.7080900"+CT)
+    else
+      print("0001020.KRAKEN.7080900")
+    end if
+    if cursor_position == 7 then
+      print(rgb0+"0001020.SMTPUL.7080900"+CT)
+    else
+      print("0001020.SMTPUL.7080900")
+    end if
+    print("[q]1020304050607080900")
+    waitFor = user_input(":||006<b>v</b>7<b><</b>8<b>></b>9<b>^</b>00||: ",0,1)
+
+    if waitFor == 7 or waitFor == "LeftArrow" or waitFor.lower == "q" then
+      // west
+      doing_stuff = false
+    end if
+    if waitFor == 8 or waitFor == "RightArrow" or waitFor == "Return" or waitFor == "Enter" then
+      // east/launch
+      menu_launcher(cursor_position)
+      //do stuff
+    end if
+    men_min = 0
+    men_max = 7
+    if waitFor == 9 or waitFor == "UpArrow" then
+      //north
+      if cursor_position == men_min then
+        cursor_position = men_max
+        continue
+      end if
+      if cursor_position > men_min then
+        cursor_position = cursor_position - 1
+        continue
+      end if
+    end if
+    if waitFor == 6 or waitFor == "DownArrow" then
+      // south
+      if cursor_position == men_max then
+        cursor_position = men_min
+        continue
+      end if
+      if cursor_position < men_max then
+        cursor_position = cursor_position + 1
+        continue
+      end if
+    end if
+  end while
+end function
+
+sphinx_switch = function(resolve,tt)
+  if resolve.lower == "q" then
+    return false
+  end if
+  if resolve.lower == "." then 
+    if not targetIP then
+      print("Please set target IP and Port before continuing.")
+    else 
+      print(command.dig(targetIP,str(targetPort)))
+    end if
+    return true
+  end if
+  if resolve == "-" then
+    if user_input("Purge: netsession, metaLib, exploits?"+char(10)+"[<b>Y</b>/n]||: ",0,1) == "n" then 
+      print "aborting..."
+      return true
+    end if
+    print(command.purge("-X","y"))
+    globals.net_session = null
+    print "Net_Session purged."
+    globals.metaLib = null
+    print "MetaLib purged."
+    return true
+  end if
+  if resolve == "+" or resolve == "=" then
+    if targetIP and targetPort then
+      if not globals.metaxploit then print "error: metaxploitLib not found" else print(command.linkdb(get_lib,"-y"))
+    else
+      print(colorOrange+"Please set target IP and Port before continuing.")
+    end if
+    return true
+  end if
+  if resolve.lower == "a" then
+    if metaLib then
+      print colorRed+"zap: "+colorWhite+" obtained: "+select_attack
+    else
+      print("Error: metaLib not loaded. ")
+    end if
+    return true
+  end if
+  if resolve.lower == "z" then
+    print("Wiping local log file...")
+    command.silentclean
+    print("Complete.")
+  end if
+  if resolve == "0" or resolve.lower == "p" then
+    if not localmachine.is_network_active then 
+      print(colorOrange+"No Network Connection!")
+      return true
+    end if
+    globals.PORT_MAP={}
+    if targetIP then
+      who_scan
+    else
+      set_ip
+      who_scan
+    end if
+    return true
+  end if
+  if resolve == "1" or resolve.lower == "s" then
+    if metaLib then
+      //get_lib
+      scan_memory
+    else
+      print("Please establish net connection: [+] before scanning." )
+    end if
+    return true
+  end if
+  if resolve == "2" or resolve.lower == "r" then
+    if targetIP and metaLib then
+      print("Casting roi1 storm...")
+      //zap_it
+      roil
+    else
+      print("Error: metaLib not loaded." )
+    end if
+    return true
+  end if
+  if resolve == "3" or resolve.lower == "d" then
+    if globals.metaLib and not globals.net_session then
+      confirm = user_input("Scan local lib: "+globals.metaLib.lib_name+" and update database? [Y/n] ||: ",0,1)
+      if confirm.lower != "n" then command.db("-l", metaLib.lib_name) else print("aborting...")
+      return true
+    else
+      if not localmachine.is_network_active then 
+        print(colorOrange+"No network connection!")
+        return true
+      end if
+      if globals.targetIP and globals.targetPort then
+        confirm = user_input("Scan remote lib: "+globals.targetIP+" "+globals.targetPort+" and update database? [Y/n] ||: ",0,1)
+        if confirm.lower != "n" then print command.db("-r", globals.targetIP, globals.targetPort)
+        return true
+      else
+        print("Please set a target IP and port." )
+      end if
+    end if
+    return true
+  end if
+  if resolve == "*" or resolve == "/" then 
+    if globals.net_session then print command.db("-r","*") else print command.db("-l","*")
+    return true
+  end if
+  if resolve == "4" or resolve.lower == "i" then
+    catch = set_ip
+    update_port_info
+    return true
+  end if
+  if resolve == "5" then
+    set_port
+    update_port_info
+    return true
+  end if
+  if resolve == "6" or resolve == "DownArrow" then
+    command.mail
+    return true
+  end if
+  if resolve == "7" or resolve == "LeftArrow" or resolve.lower == "m" then
+    memory_alpha
+    return true
+  end if
+  if resolve == "8" or resolve == "RightArrow" then
+    page_two
+    return true
+  end if
+  if resolve == "9" or resolve == "UpArrow" then
+    r_hecks
+    return true
+  end if
+  if resolve == "?" or resolve == "F1" then print_help
+  // default
+  return true
+end function
+
+
+print_help = function()
+  sphinx_help
+  stop = user_input("press <<b>anyKey</b>> to continue",0,1)
+end function
+
+mail_widget = function(step)
+  mw_dat = globals.inbox.fetch
+  first_mail = mw_dat[0].split(char(10))
+
+  i = first_mail[2].split(" ")
+  i = i[1]
+  read_mail = mw_dat[this_mail].split(char(10))
+  l = read_mail[2].split(" ")
+  l = l[1]
+  show_mail = globals.inbox.read(l).split(char(10))
+  if i == globals.last_mail then
+    if step < show_mail.len then return " {"+colorWhite+this_mail+CT+"} "+slice( show_mail[step], 0 , 42 )+char(10)+":: "+slice( show_mail[step], 42, 80 )
+    return " {"+colorWhite+this_mail+CT+"} "+show_mail[2]
+  end if
+  globals.last_mail = i
+  return colorRed+" {*new*} "+CT+first_mail[3]
+end function
+
+// Start Main Menu
+main = function()
+  print5 = function(str)
+    return colorGold+"</b>"+str+CT 
+  end function
+  user_log_file = get_shell.host_computer.File("/var/system.log")
+  logSize = 0
+  first_run = true
+  running = true
+  count = 0
+  EL = color5phinxElement
+  TX = color5phinxText
+  BT = color5phinxButton
+  TD = color5phinxDisplay
+  while running
+    TD = color5phinxDisplay
+    if targetPort == 0 or targetPort == "0" then targetPort = "router"
+    count = count + 1
+    if count > 7 then count = 1
+    option = null
+    alert = false
+    last_log_size = logSize
+    user_log_file = get_shell.host_computer.File("/var/system.log")
+    if user_log_file then logSize = user_log_file.size
+    if logSize != last_log_size and not first_run then
+      print(colorRed + "Alert! /var/system.log has changed!"+CT)
+      alert = true
+    else
+      print
+      first_run = false
+    end if
+    target_type = "local"
+    print
+    print(colorRed+"5phinx"+char(8482)+colorWhite+"<size=90%></b> v "+sphinx_version+", by Plu70 :: localhost: "+localmachine.local_ip+CT)
+    print(EL+"<b>/////////////////////////////////////////////////////////")
+    if metaLib and (metaLib.lib_name == "metaxploit.so" or metaLib.lib_name == "crypto.so" or metaLib.lib_name == "net.so" or metaLib.lib_name == "init.so" or metaLib.lib_name == "kernel_module.so" or metaLib.lib_name == "libmail.so"  or metaLib.lib_name == "aptclient.so" or metaLib.lib_name == "blockchain.so" or metaLib.lib_name == "smratappliance.so" or metaLib.lib_name == "iot.so") then
+      target_type = "local"
+    end if
+    if PORT_MAP then
+      update_port_info
+      if targetPort == "router" or targetPort == 8080 then
+        target_type = "router"
+        if targetPort == 8080 then target_type = "http"
+      else
+        PI = portInfo.split(" ")
+        target_type = "___Set_Port_with_[5]___"
+        if typeof(PI[0]) == "string" and portInfo != "" and portInfo != "???" then
+          target_type = "computer"
+        end if
+        if PI[0] == "repository" then target_type = "repository"
+        if PI[0] == "libcam" or PI[0] == "cam" then target_type = "camera"
+        if PI[0] == "http" then target_type = "http"
+        if PI[0] == "ssh" then target_type = "ssh"
+        if PI[0] == "rshell" then target_type = "rshell"
+        if PI[0] == "employees" or PI[0] == "criminals" or PI[0] == "students" or PI[0] == "bank" then target_type = "sql"
+        if PI[0] == "smtp" then target_type = "mail"
+        if PI[0] == "smartappliance" then target_type = "appliance"
+        if PI[0] == "smartphone" then target_type = "smartphone"
+        if PI[0] == "ftp" then target_type = "ftp"
+      end if
+      //if metaLib and (metaLib.lib_name == "metaxploit.so" or metaLib.lib_name == "crypto.so" or metaLib.lib_name == "net.so" or metaLib.lib_name == "init.so" or metaLib.lib_name == "kernel_module.so" or metaLib.lib_name == "libmail.so"  or metaLib.lib_name == "aptclient.so") then target_type = "local"
+      if globals.metaLib and not globals.net_session then target_type = "local"
+      if target_type == "camera" then   target_type = EL+"________"+TX+"CAMERA"+CT+"_________"+CT
+      if target_type == "computer" then target_type = EL+"________"+TX+"SERVER"+CT+"_________"+CT
+      if target_type == "router" then   target_type = EL+"________"+TX+"ROUTER"+CT+"_________"+CT
+      if target_type == "http" then     target_type = EL+"______"+TX+"WEB_SERVER"+CT+"_______"+CT
+      if target_type == "local" then    target_type = EL+"________"+TX+"LOCAL"+CT+"__________"+CT
+      if target_type == "ssh" then      target_type = EL+"______"+TX+"SSH_SERVER"+CT+"_______"+CT
+      if target_type == "ftp" then      target_type = EL+"______"+TX+"FTP_SERVER"+CT+"_______"+CT
+      if target_type == "rshell" then   target_type = EL+"_____"+TX+"RSHELL_SERVER"+CT+"_____"+CT
+      if target_type == "sql" then      target_type = EL+"______"+TX+"SQL_SERVER"+CT+"_______"+CT
+      if target_type == "mail" then     target_type = EL+"______"+TX+"MAIL_SERVER"+CT+"______"+CT
+      if target_type == "appliance" or target_type == "smarphone" then target_type = EL+"________"+TX+"DEVICE"+CT+"_________"+CT
+      if target_type == "sql" then      target_type = EL+"______"+TX+"REPOSITORY"+CT+"_______"+CT
+      if target_type == "" then target_type =         EL+"_______"+TX+"UNKNOWN"+CT+"________"+CT
+      print(TX+"Target:"+EL+target_type+CT+"Port Map:"+colorGreen+" Loaded")
+    else             
+      if targetIP then
+        print(EL+"Target:___"+TX+"Map_with_[0]"+CT+"____"+TX+"Port Map:"+colorWarning+" not Loaded")
+      else
+        print(EL+"Target:__"+TX+"Set_IP_with_[4]"+CT+"__"+TX+"Port Map:"+colorWarning+" not Loaded")
+      end if
+    end if
+
+    //print(EL+format_columns("[ "+ TX + targetIP + CT + " ] [ " + TX + targetPort + CT +" ]"))
+    if portInfo then
+      if target_type == EL+"________"+TX+"LOCAL"+CT+"__________"+CT then TD = color5phinxElement
+      print(format_columns( EL + "[ "+ TD + targetIP + CT + " ] [ " + TD + targetPort + CT +" ]"+ char(10)+EL+"[ "+ TD + tarLan + CT +  " ] [ " + TD + portInfo.replace(" ","_") + CT+ " ]" ))
+    end if
+    if metaLib then
+      print EL+format_columns("["+TX+"MetaLib: "+CT+colorGreen+"loaded"+CT+" [" +colorGreen+ NUM_SPLOITS +CT+ "] "+TX+"Exploits Found"+CT+"]")
+      print EL+format_columns("["+TX+"MetaLib: "+CT+colorGreen+metaLib.lib_name + " v " + metaLib.version+CT+"]")
+      print EL+"<size=75%>["+BT+"-"+CT+"]"+TX+" "+colorGreen+"  ="+CT+" un-link metaLib"+char(10)+
+            EL+"<size=75%>["+BT+"="+EL+"|"+CT+"+"+CT+"]"+TX+colorGreen+" = "+CT+"link new metaLib"
+    else
+      print(EL+"["+TX+"MetaLib: "+colorWarning+"not loaded"+CT+CT+"] "+TX+"press "+CT+"["+BT+"="+CT+"]"+TX+" or "+CT+"["+BT+"+"+CT+"]"+TX+" to link")
+    end if
+    print(EL+"["+TX+"Log I/O: " + logSize + " bytes"+CT+"]")
+    if alert then print(colorError+"<size=75%>-- Alert! /var/system.log has changed size!")
+    print
+    print EL+"["+BT+"F1"+CT+"]"+TX+" for <b>help"
+    netinfo = netdump
+    //if globals.HERMES == true then disabled indefinitely
+      //print(EL+"000"+mail_widget(count))
+    //else   
+      print EL+"000102030405060708090<b>. "+netinfo[0]
+    //end if
+    if targetIP then
+      print EL+"0["+BT+"0"+CT+"]...."+BT+"P"+CT+TX+"ROBE"+CT+".....09..</b> "+netinfo[1]
+      print EL+"00["+BT+"1"+CT+"]..."+BT+"S"+CT+TX+"CAN"+CT+"..070809..</b>"+netinfo[2]
+    else
+      //print EL+"000102030405060708090<b>..</b>"+netinfo[1]
+      print EL+"0["+BT+"0"+CT+"]...."+BT+"P"+CT+TX+"ROBE"+CT+".....09..</b> "+netinfo[1]
+      print EL+"000102030405060708090<b>..</b>"+netinfo[2]
+    end if
+    if targetIP and targetPort then
+      print EL+"000.["+BT+"2"+CT+"]."+BT+"R"+CT+TX+"OIL"+CT+"....0809..</b>"+netinfo[3]
+      print EL+"000..["+BT+"3"+CT+"]"+BT+"D"+CT+TX+"BASER"+CT+"...809..</b>"+netinfo[4]
+    else
+      print EL+"001"+TX+" SET IP WITH "+CT+"["+BT+"4"+CT+"] 0..</b>"+netinfo[3]
+      print EL+"000"+TX+" SET PT WITH "+CT+"["+BT+"5"+CT+"] 0..</b>"+netinfo[4]
+    end if
+    print EL+"["+BT+"."+CT+"]DIG.["+BT+"4"+CT+"]<b>IP</b>.["+BT+"5"+CT+"]<b>PORT</b>..</b>"+netinfo[5]
+    print EL+"["+BT+"Q"+CT+"]["+BT+"A"+CT+"]["+BT+"Z"+CT+"]["+BT+char(177)+CT+"].6"+BT+"v"+CT+"7"+BT+"<"+CT+"8"+BT+">"+CT+"9"+BT+"^"+CT+".</b>"+netinfo[6]
+    option = user_input(EL+"[0][1][2][3][4][5]<b>||: ",0,1)
+    running = sphinx_switch(option,target_type)
+  end while
+end function
+//main
+//exit("Goodbye.")

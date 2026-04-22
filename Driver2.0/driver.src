@@ -1,0 +1,59 @@
+// Driver 2.0 — driver.src
+// Entry point: initializes globals, imports modules, runs REPL.
+//
+// Module import order matters — s, c, and command must exist
+// before any imported module's top-level code runs.
+
+DRIVER_VERSION = "2.0.0"
+DRIVER_PATH    = "/root/Driver2.0"
+SRC_5HELL      = DRIVER_PATH + "/src/5hell"
+SRC_HEX        = DRIVER_PATH + "/src/hex"
+TMP_PATH       = "/root"
+
+DEBUG = true   // set true to enable verbose debug output
+
+s = get_shell
+c = s.host_computer
+command = {}
+
+import_code("/root/.driver_build/core.drvr")
+import_code("/root/.driver_build/ui.drvr")
+import_code("/root/.driver_build/bridge.cmd.drvr")
+import_code("/root/.driver_build/install.cmd.drvr")
+import_code("/root/.driver_build/hackcmds.cmd.drvr")
+import_code("/root/.driver_build/launch.cmd.drvr")
+
+// --- REPL ---
+
+driverSplash()
+driverDebug("REPL started. DEBUG=true, version=" + DRIVER_VERSION)
+driverDebug("command map keys: " + command.indexes.join(", "))
+
+while true
+    input = user_input(driverPrompt()).trim
+    driverDebug("raw input: [" + input + "]")
+    if input == "" then continue
+
+    // Tokenize: split on spaces, discard empty tokens
+    parts = []
+    for t in input.split(" ")
+        if t != "" then parts.push(t)
+    end for
+
+    cmd = parts[0].lower
+    args = []
+    if parts.len > 1 then args = parts[1:]
+
+    driverDebug("cmd=[" + cmd + "]  args=" + str(args) + "  args.len=" + args.len)
+
+    if cmd == "quit" or cmd == "exit" or cmd == "q" then exit
+
+    if command.hasIndex(cmd) then
+        driverDebug("dispatching to command[" + cmd + "] with args=" + args)
+        func = @command[cmd]
+        func(args)
+    else
+        print driverMsg("error", "unknown command '" + cmd + "'. type 'help' for commands.")
+        driverDebug("no handler for cmd=[" + cmd + "]")
+    end if
+end while

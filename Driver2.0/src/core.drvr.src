@@ -1,0 +1,110 @@
+// Driver 2.0 — core.drvr.src
+// Persistent state init, ember palette, shared utilities.
+// Imported first by driver.src — s, c, command, and DEBUG are already defined.
+
+// --- Ember Palette ---
+// Must come first — driverDebug depends on it.
+
+PALETTE = {
+    "accent":       "#FF8400FF",
+    "accentBright": "#FFB347FF",
+    "accentDeep":   "#B85A00FF",
+    "ember1":       "#FFAA3BFF",
+    "ember2":       "#FFA031FF",
+    "ember3":       "#FF952CFF",
+    "ember4":       "#FF8929FF",
+    "ember5":       "#FF7C2BFF",
+    "ember6":       "#FF6B2EFF",
+    "text":         "#FFF1E2FF",
+    "muted":        "#D7A173FF",
+    "border":       "#7A3B00FF",
+    "info":         "#FFB866FF",
+    "success":      "#FFD089FF",
+    "warning":      "#FFC857FF",
+    "error":        "#FF6B3DFF",
+    "shadow":       "#4D2600FF"
+}
+
+// --- Debug Output ---
+// Defined here (before state init) so top-level debug calls work immediately.
+// Uses PALETTE directly — driverText is not yet available at this point.
+
+driverDebug = function(msg)
+    if not DEBUG then return
+    print "<color=" + PALETTE["border"] + ">[</color>" +
+          "<color=" + PALETTE["warning"] + "><b>DBG</b></color>" +
+          "<color=" + PALETTE["border"] + ">]</color> " +
+          "<color=" + PALETTE["muted"] + ">" + msg + "</color>"
+end function
+
+// --- Persistent State (Architecture C) ---
+// Data only. Functions are never stored here.
+
+g = get_custom_object
+driverDebug("get_custom_object acquired. has driver=" + str(g.hasIndex("driver")))
+if not g.hasIndex("driver") then g.driver = {}
+if not g.driver.hasIndex("version") then
+    g.driver.version = DRIVER_VERSION
+    driverDebug("state.version initialized: " + DRIVER_VERSION)
+end if
+if not g.driver.hasIndex("sessions") then
+    g.driver.sessions = {}
+    driverDebug("state.sessions initialized")
+end if
+if not g.driver.hasIndex("installs") then
+    g.driver.installs = {}
+    driverDebug("state.installs initialized")
+end if
+driverDebug("state ready: version=" + g.driver.version + "  sessions=" + g.driver.sessions.len + "  installs=" + g.driver.installs.len)
+
+// --- Bridge State ---
+// Persists acquired shells and config across tool launches.
+
+if not g.driver.hasIndex("bridge") then g.driver.bridge = {}
+if not g.driver.bridge.hasIndex("shells") then g.driver.bridge.shells = []
+if not g.driver.bridge.hasIndex("macros") then g.driver.bridge.macros = {}
+if not g.driver.bridge.hasIndex("home") then g.driver.bridge.home = null
+if not g.driver.hasIndex("target") then g.driver.target = null
+driverDebug("bridge state ready: shells=" + g.driver.bridge.shells.len)
+
+// --- Command Registry ---
+
+registerCommand = function(name, fn)
+    if command.hasIndex(name) then
+        driverDebug("registerCommand SKIP duplicate: " + name)
+        return
+    end if
+    command[name] = @fn
+    driverDebug("registerCommand OK: " + name)
+end function
+
+// --- Shared Utilities ---
+
+ensureDir = function(path)
+    driverDebug("ensureDir: " + path)
+    if c.File(path) != null then
+        driverDebug("ensureDir: already exists, skip")
+        return
+    end if
+    parts = path.split("/")
+    parts.remove("")
+    built = ""
+    for part in parts
+        built = built + "/" + part
+        if c.File(built) == null then
+            parent = built[: built.lastIndexOf("/")]
+            if parent == "" then parent = "/"
+            driverDebug("ensureDir: create_folder parent=" + parent + " name=" + part)
+            result = c.create_folder(parent, part)
+            if result != 1 then
+                print driverMsg("error", "mkdir failed: " + built + " (" + result + ")")
+            end if
+        end if
+    end for
+end function
+
+isInstalled = function(checkPath)
+    result = c.File(checkPath) != null
+    driverDebug("isInstalled: " + checkPath + " -> " + str(result))
+    return result
+end function

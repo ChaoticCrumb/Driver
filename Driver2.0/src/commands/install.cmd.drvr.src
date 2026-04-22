@@ -1,0 +1,186 @@
+// Driver 2.0 — install.cmd.src
+// Provides: install <tool>, status
+// Registered into the global command map via registerCommand.
+
+// --- Tool Registry ---
+// Authoritative list of tools Driver can install.
+
+DRIVER_TOOLS = [
+    {
+        "id":    "5hell",
+        "name":  "5hell",
+        "ver":   "v4.3.6",
+        "desc":  "Modular hacktool by Plu70",
+        "check": "/root/5hell",
+    },
+    {
+        "id":    "hex",
+        "name":  "HEX",
+        "ver":   "",
+        "desc":  "Penetration testing framework",
+        "check": "/root/hex",
+    }
+]
+
+HEX_INSTALLER_COUNT = 9
+
+// --- Install Helpers ---
+
+install5hellTool = function()
+    print(driverMsg("info", "installing 5hell v4.3.6..."))
+    pkgPath = "/root/src"
+    driverDebug("install5hell: pkgPath=" + pkgPath)
+    ensureDir(pkgPath)
+
+    // Ensure all directories 5hell expects exist before first run
+    ensureDir("/root/rkit")
+    ensureDir("/root/rkit/tables")
+    ensureDir("/root/Config")
+
+    pkgs = ["contrib.5pk", "net.5pk", "kore.5pk", "dtools.5pk", "5phinx.5pk", "help.5pk", "5hell.5pk"]
+    for pkg in pkgs
+        print("  " + driverText("muted", "building  " + pkg + "...", 0))
+        src = SRC_5HELL + "/" + pkg + ".src"
+        driverDebug("build: src=" + src + " dest=" + pkgPath)
+        result = s.build(src, pkgPath, 1)
+        driverDebug("build result: " + str(result))
+        if c.File(pkgPath + "/" + pkg) == null then
+            print(driverMsg("error", "build failed (" + pkg + "): " + result))
+            driverDebug("install5hell FAIL at pkg=" + pkg)
+            return 0
+        end if
+        driverDebug("pkg ok: " + pkgPath + "/" + pkg)
+    end for
+
+    print("  " + driverText("muted", "building  5hell...", 0))
+    driverDebug("build main: src=" + SRC_5HELL + "/5hell.src  dest=/root/")
+    result = s.build(SRC_5HELL + "/5hell.src", "/root/", 0)
+    driverDebug("main build result: " + str(result))
+    if c.File("/root/5hell") == null then
+        print(driverMsg("error", "build failed (5hell): " + result))
+        driverDebug("install5hell FAIL: /root/5hell not found")
+        return 0
+    end if
+
+    print("  " + driverText("muted", "cleaning  " + pkgPath + "...", 0))
+    srcDir = c.File(pkgPath)
+    if srcDir != null then
+        srcDir.delete
+        driverDebug("cleaned: " + pkgPath)
+    end if
+
+    g.driver.installs["5hell"] = {"path": "/root/5hell", "ver": "v4.3.6"}
+    driverDebug("state.installs[5hell] written")
+    print(driverMsg("success", "5hell installed  ->  /root/5hell"))
+    return 1
+end function
+
+installHexTool = function()
+    print(driverMsg("info", "installing HEX..."))
+    driverDebug("installHex: TMP_PATH=" + TMP_PATH + "  installer_count=" + HEX_INSTALLER_COUNT)
+    ensureDir(TMP_PATH)
+
+    // Ensure all directories HEX expects exist before first run
+    ensureDir("/root/SecureLibs")
+    ensureDir("/root/InsecureLibs")
+
+    i = 0
+    while i < HEX_INSTALLER_COUNT
+        src = SRC_HEX + "/installer" + i + ".src"
+        bin = TMP_PATH + "/installer" + i
+        driverDebug("hex step " + i + ": src=" + src + "  bin=" + bin)
+
+        if c.File(src) == null then
+            print(driverMsg("error", "missing: " + src))
+            driverDebug("installHex FAIL: source missing at step " + i)
+            return 0
+        end if
+
+        print("  " + driverText("muted", "building  installer" + i + "...", 0))
+        result = s.build(src, TMP_PATH + "/", 1)
+        driverDebug("build result: " + str(result))
+
+        if c.File(bin) == null then
+            print(driverMsg("error", "build failed (installer" + i + "): " + result))
+            driverDebug("installHex FAIL: binary missing at step " + i)
+            return 0
+        end if
+
+        print("  " + driverText("muted", "running   installer" + i + "...", 0))
+        driverDebug("launch: " + bin)
+        s.launch(bin, "")
+        driverDebug("installer" + i + " returned")
+
+        i = i + 1
+    end while
+
+    g.driver.installs["hex"] = {"path": "/root/hex", "ver": ""}
+    driverDebug("state.installs[hex] written")
+    print(driverMsg("success", "HEX installed  ->  /root/hex"))
+    return 1
+end function
+
+// --- Command: install ---
+
+cmdInstall = function(args)
+    if args == null then args = []
+    driverDebug("cmdInstall: args=" + str(args))
+    if args.len == 0 then
+        print(driverMsg("error", "usage: install <5hell|hex>"))
+        return
+    end if
+
+    id = args[0].lower
+    driverDebug("cmdInstall: id=" + id)
+    tool = null
+    for t in DRIVER_TOOLS
+        if t["id"] == id then tool = t
+    end for
+    driverDebug("cmdInstall: tool lookup -> " + str(tool != null))
+
+    if tool == null then
+        print(driverMsg("error", "unknown tool '" + id + "'. available: 5hell, hex"))
+        return
+    end if
+
+    if isInstalled(tool["check"]) then
+        confirm = user_input(driverMsg("warning", tool["name"] + " already installed. reinstall? [y/N]: "))
+        if confirm.lower != "y" then return
+    end if
+
+    print("")
+    if id == "5hell" then install5hellTool()
+    if id == "hex"   then installHexTool()
+    print("")
+end function
+
+// --- Command: status ---
+
+cmdStatus = function(args)
+    if args == null then args = []
+    print("")
+    print(driverHeader("tool status"))
+    print(driverRule(74))
+    i = 0
+    for t in DRIVER_TOOLS
+        if isInstalled(t["check"]) then
+            badge = driverBadge("installed", "success")
+        else
+            badge = driverBadge("missing", "error")
+        end if
+        ver = ""
+        if t["ver"] != "" then ver = " " + driverText("muted", t["ver"], 0)
+        print("  " + driverText("border", "[") + driverText("accentBright", str(i)) +
+              driverText("border", "]") + "  " + driverText("accent", t["name"]) + ver +
+              driverText("muted", "  ::  ", 0) + driverText("text", t["desc"], 0) +
+              "  " + badge)
+        i = i + 1
+    end for
+    print(driverRule(74))
+    print("")
+end function
+
+// --- Register ---
+
+registerCommand("install", @cmdInstall)
+registerCommand("status",  @cmdStatus)

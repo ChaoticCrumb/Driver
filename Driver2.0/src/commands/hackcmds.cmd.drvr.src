@@ -1,0 +1,207 @@
+// Driver 2.0 — hackcmds.cmd.drvr.src
+// Exposes borrowed hacking commands in Driver's own REPL.
+// 5hell commands are dispatched via single-shot do-launch (avoids globals shim complexity).
+// HEX commands are dispatched directly through stored g.tools dispatch (requires HEX to have run).
+// Also provides: target (set active target), sessions (view bridge.shells).
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+// Runs a single 5hell command and returns. Seeds state first so macros and
+// any bridged sessions are available to the command. Harvests afterwards.
+// 5hell's do-launch mechanism: params["do","1","cmd","arg1",...] causes 5hell
+// to build the floating-quote shell invocation and exit after the command runs.
+driverRun5hellCmd = function(cmd, args)
+    if not isInstalled("/root/5hell") then
+        print driverMsg("error", "5hell is not installed. run: install 5hell")
+        return
+    end if
+
+    fullCmd = cmd
+    if args.len > 0 then fullCmd = cmd + " " + args.join(" ")
+    driverDebug("driverRun5hellCmd: cmd=[" + fullCmd + "]")
+
+    // Seed state (macros, bridged shells) into g before launching
+    driverSeedState5hell
+
+    s.launch("/root/5hell", "do 1 " + fullCmd)
+
+    driverHarvest5hell
+end function
+
+// Calls a HEX tool directly through g.tools dispatch.
+// Requires HEX to have been launched at least once (g.tools and g.stack["0"] must exist).
+driverRunHexCmd = function(toolName, args)
+    if not g.hasIndex("tools") or not g.tools.hasIndex(toolName) then
+        print driverMsg("error", "HEX not initialized. run: launch hex")
+        return
+    end if
+    if not g.hasIndex("stack") or not g.stack.hasIndex("0") then
+        print driverMsg("error", "HEX context not initialized. run: launch hex")
+        return
+    end if
+
+    driverDebug("driverRunHexCmd: " + toolName + " args=" + str(args))
+    g.tools[toolName].exec(args)
+    driverHarvestHex
+end function
+
+// ---------------------------------------------------------------------------
+// target — set Driver's active target (used for passthrough to both tools)
+// ---------------------------------------------------------------------------
+
+cmdTarget = function(args)
+    if args == null then args = []
+
+    if args.len == 0 or args[0] == "-h" or args[0] == "help" then
+        print driverMsg("info", "usage: target <ip> {port}")
+        if g.driver.target != null then
+            t = g.driver.target
+            portStr = "any"
+            if t.hasIndex("port") and t["port"] != null then portStr = str(t["port"])
+            print driverMsg("info", "current target: " + t["ip"] + " / " + portStr)
+        else
+            print driverMsg("info", "no target set")
+        end if
+        return
+    end if
+
+    ip = args[0]
+    port = null
+    if args.len > 1 then port = args[1]
+    g.driver.target = {"ip": ip, "port": port}
+
+    portStr = "any"
+    if port != null then portStr = str(port)
+    print driverMsg("success", "target -> " + ip + " / " + portStr)
+end function
+
+// ---------------------------------------------------------------------------
+// sessions — show all acquired sessions in the bridge
+// ---------------------------------------------------------------------------
+
+cmdSessions = function(args)
+    if args == null then args = []
+    print ""
+    print driverHeader("sessions", "bridge.shells")
+    print driverRule(74)
+
+    shells = g.driver.bridge.shells
+    if shells.len == 0 then
+        print "  " + driverText("muted", "no sessions. launch a tool and acquire targets.", 0)
+    else
+        for i in range(0, shells.len - 1)
+            e = shells[i]
+            src  = "?"
+            if e.hasIndex("source") then src = e["source"]
+            ip   = driverText("muted", "unknown", 0)
+            if e.hasIndex("ip") and e["ip"] != "" then ip = driverText("text", e["ip"], 0)
+
+            valid = e.hasIndex("shell") and typeof(e["shell"]) == "shell"
+            badge = driverBadge("alive", "success")
+            if not valid then badge = driverBadge("stale", "error")
+
+            print "  " + driverText("border", "[") + driverText("accentBright", str(i)) +
+                  driverText("border", "]") + "  " + driverText("accent", src) + "  " +
+                  ip + "  " + badge
+        end for
+    end if
+    print driverRule(74)
+    print ""
+end function
+
+// ---------------------------------------------------------------------------
+// 5hell-dispatched commands
+// ---------------------------------------------------------------------------
+
+cmdProbe = function(args)
+    if args == null then args = []
+    if args.len == 0 or args[0] == "-h" or args[0] == "help" then
+        print driverMsg("info", "usage: probe <ip> {port}  —  port scan and whois via 5hell")
+        return
+    end if
+    driverRun5hellCmd("probe", args)
+end function
+
+cmdDb = function(args)
+    if args == null then args = []
+    if args.len == 0 or args[0] == "-h" or args[0] == "help" then
+        print driverMsg("info", "usage: db <-r|-l|-m|-M> <args...>  —  exploit database via 5hell")
+        return
+    end if
+    driverRun5hellCmd("db", args)
+end function
+
+cmdSsh = function(args)
+    if args == null then args = []
+    if args.len == 0 or args[0] == "-h" or args[0] == "help" then
+        print driverMsg("info", "usage: ssh <user@pass> <ip> {port}  —  SSH connect via 5hell")
+        return
+    end if
+    driverRun5hellCmd("ssh", args)
+end function
+
+cmdZap = function(args)
+    if args == null then args = []
+    if args.len == 0 or args[0] == "-h" or args[0] == "help" then
+        print driverMsg("info", "usage: zap <addr> <vuln> {inject}  —  single exploit via 5hell")
+        return
+    end if
+    driverRun5hellCmd("zap", args)
+end function
+
+cmdMeta = function(args)
+    if args == null then args = []
+    if args.len == 0 or args[0] == "-h" or args[0] == "help" then
+        print driverMsg("info", "usage: meta <link|load|scan> <args...>  —  metaLib mgmt via 5hell")
+        return
+    end if
+    driverRun5hellCmd("meta", args)
+end function
+
+cmdRsi = function(args)
+    if args == null then args = []
+    if args.len == 0 or args[0] == "-h" or args[0] == "help" then
+        print driverMsg("info", "usage: rsi {-d|-D|-r|-l|-s}  —  reverse shell interface via 5hell")
+        return
+    end if
+    driverRun5hellCmd("rsi", args)
+end function
+
+// ---------------------------------------------------------------------------
+// HEX-dispatched commands
+// ---------------------------------------------------------------------------
+
+cmdScan = function(args)
+    if args == null then args = []
+    if args.len == 0 or args[0] == "-h" or args[0] == "help" then
+        print driverMsg("info", "usage: scan <ip> {port}  —  find exploitable addresses via HEX")
+        return
+    end if
+    driverRunHexCmd("scan", args)
+end function
+
+cmdHack = function(args)
+    if args == null then args = []
+    if args.len == 0 or args[0] == "-h" or args[0] == "help" then
+        print driverMsg("info", "usage: hack <ip> {port/lanIP}  —  exploit and stack session via HEX")
+        return
+    end if
+    driverRunHexCmd("hack", args)
+end function
+
+// ---------------------------------------------------------------------------
+// Register all commands
+// ---------------------------------------------------------------------------
+
+registerCommand("target",   @cmdTarget)
+registerCommand("sessions", @cmdSessions)
+registerCommand("probe",    @cmdProbe)
+registerCommand("db",       @cmdDb)
+registerCommand("ssh",      @cmdSsh)
+registerCommand("zap",      @cmdZap)
+registerCommand("meta",     @cmdMeta)
+registerCommand("rsi",      @cmdRsi)
+registerCommand("scan",     @cmdScan)
+registerCommand("hack",     @cmdHack)

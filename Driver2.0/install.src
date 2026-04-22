@@ -1,0 +1,146 @@
+// Driver 2.0 — install.src
+// Multi-step bootstrap installer for Driver 2.0.
+//
+// Process:
+//   1. Build each .drvr.src module → /root/.driver_build/*.drvr
+//   2. Build driver.src (import_code inlines those .drvr binaries) → /root/driver
+//   3. Validate /root/driver exists
+//   4. Delete /root/.driver_build/ (temp artifacts)
+//
+// Requires root.
+
+s = get_shell
+c = s.host_computer
+
+if active_user != "root" then exit "<color=#FF6B3DFF><b>Driver install requires root.</color></b>"
+
+DRIVER_PATH = "/root/Driver2.0"
+BUILD_PATH  = "/root/.driver_build"
+DEST_PATH   = "/root"
+BINARY_NAME = "driver"
+
+// --- Ember helpers (inline — no modules loaded yet) ---
+
+C_BRIGHT   = "<color=#FFB347FF><b>"
+C_INFO     = "<color=#FFB866FF>"
+C_MUTED    = "<color=#D7A173FF>"
+C_SUCCESS  = "<color=#FFD089FF><b>"
+C_ERROR    = "<color=#FF6B3DFF><b>"
+CT         = "</color></b>"
+CT_PLAIN   = "</color>"
+
+printInfo = function(msg)
+    print "[DRIVER] " + C_INFO + msg + CT_PLAIN 
+end function
+printStep = function(msg) 
+    print "  " + C_MUTED + msg + CT_PLAIN
+end function
+printOk = function(msg) 
+    print "[DRIVER] " + C_SUCCESS + msg + CT
+end function
+printFail = function(msg) 
+    print "[DRIVER] " + C_ERROR + msg + CT
+end function
+
+// --- Modules to build ---
+// Each entry: [source path relative to DRIVER_PATH, output binary name]
+
+MODULES = [
+    ["src/core.drvr.src",                    "core.drvr"],
+    ["src/ui.drvr.src",                      "ui.drvr"],
+    ["src/commands/bridge.cmd.drvr.src",     "bridge.cmd.drvr"],
+    ["src/commands/install.cmd.drvr.src",    "install.cmd.drvr"],
+    ["src/commands/hackcmds.cmd.drvr.src",   "hackcmds.cmd.drvr"],
+    ["src/commands/launch.cmd.drvr.src",     "launch.cmd.drvr"]
+]
+
+// --- Build folder management ---
+
+createBuildFolder = function()
+    if c.File(BUILD_PATH) != null then return
+    parent = BUILD_PATH[: BUILD_PATH.lastIndexOf("/")]
+    name   = BUILD_PATH[BUILD_PATH.lastIndexOf("/") + 1:]
+    result = c.create_folder(parent, name)
+    if result != 1 then
+        printFail("could not create build folder: " + BUILD_PATH + " (" + result + ")")
+        exit
+    end if
+end function
+
+cleanBuildFolder = function()
+    folder = c.File(BUILD_PATH)
+    if folder == null then return
+    for f in folder.get_files
+        f.delete
+    end for
+    folder.delete
+end function
+
+// --- Step 1: Build each module ---
+
+buildModules = function()
+    printInfo("building Driver modules...")
+    for entry in MODULES
+        srcPath = DRIVER_PATH + "/" + entry[0]
+        outName = entry[1]
+
+        if c.File(srcPath) == null then
+            printFail("missing source: " + srcPath)
+            return 0
+        end if
+
+        printStep("building  " + outName + "...")
+        result = s.build(srcPath, BUILD_PATH + "/", 1)
+
+        if c.File(BUILD_PATH + "/" + outName) == null then
+            printFail("build failed (" + outName + "): " + result)
+            return 0
+        end if
+
+        printStep("ok        " + BUILD_PATH + "/" + outName)
+    end for
+    return 1
+end function
+
+// --- Step 2: Build driver.src ---
+
+buildDriver = function()
+    printInfo("building driver...")
+
+    existing = c.File(DEST_PATH + "/" + BINARY_NAME)
+    if existing != null then existing.delete
+
+    result = s.build(DRIVER_PATH + "/driver.src", DEST_PATH + "/", 1)
+
+    if c.File(DEST_PATH + "/" + BINARY_NAME) == null then
+        printFail("driver build failed: " + result)
+        return 0
+    end if
+
+    return 1
+end function
+
+// --- Main ---
+
+print ""
+print C_BRIGHT + "  Driver 2.0 installer" + CT
+print ""
+
+createBuildFolder
+
+if not buildModules() then
+    cleanBuildFolder
+    exit
+end if
+
+if not buildDriver() then
+    cleanBuildFolder
+    exit
+end if
+
+cleanBuildFolder
+
+print ""
+printOk("Driver 2.0 installed  ->  " + DEST_PATH + "/" + BINARY_NAME)
+print ""
+

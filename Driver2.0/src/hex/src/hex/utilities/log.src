@@ -1,0 +1,40 @@
+// Prints usage and flag descriptions for the log utility.
+// @return {none}
+logHelp = function()
+    text = g.const.ni + g.l3("Usage:","u") + g.const.ni
+    text = text + g.g2(self.name) + g.l2(" Corrupts the log file on the current context machine.") + g.const.ni
+    text = text + g.g2(self.name) + g.b3(" [-a/all]") + g.l2(" Corrupts the log file on every context in the stack.") + g.const.ni
+    text = text + g.g2(self.name) + g.b3(" [-d/download]") + g.l2(" Downloads the log file from the current context to the home computer.") + g.const.ni
+    text = text + g.g2(self.name) + g.b3(" [-h/help]") + g.l2(" Displays this help text") + g.const.nl
+
+    print(text)
+end function
+
+// Corrupts or downloads log files.  With no args, corrupts the current context's log.
+// With [-a/all], corrupts every non-home context in the stack.  With [-d/download],
+// downloads the log file to the home targets folder.
+// @param {list<string>|null} args - Optional flag: ["-a"], ["-d"], or ["-h"].
+// @return {none}
+doLog = function(args)
+    if args == null or args == [] then
+        g.func.corrupt_log(g.context.index)
+    else if args[0] == "-h" or args[0] == "help" then
+        self.help
+    else if args[0] == "-a" or args[0] == "all" then
+        for c in g.stack.indexes
+            if c != "0" and typeof(c.to_int) == "number" then g.func.corrupt_log(c)
+        end for
+    else if args[0] == "-d" or args[0] == "download" then
+        g.func.download_log(g.context.index)
+    else
+        print(g.error("Invalid argument: " + args[0] + g.const.ni))
+    end if
+end function
+
+g.util.log = {
+    "name": "log",
+    "shortDescription": "Corrupts or downloads log files.",
+    "exec": @doLog,
+    "help": @logHelp,
+    "data": {}
+}

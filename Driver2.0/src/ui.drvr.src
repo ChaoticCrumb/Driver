@@ -1,0 +1,126 @@
+// Driver 2.0 — ui.src
+// Ember theme helpers, splash screen, prompt, and REPL output rendering.
+// Imported after core.src — PALETTE, DRIVER_VERSION, and g are available.
+
+// --- Theme Helpers ---
+
+driverColor = function(name)
+    if PALETTE.hasIndex(name) then return PALETTE[name]
+    return PALETTE["text"]
+end function
+
+driverText = function(name, text, bold=1)
+    color = driverColor(name)
+    text = str(text)
+    if bold then return "<color=" + color + "><b>" + text + "</color></b>"
+    return "<color=" + color + ">" + text + "</color>"
+end function
+
+driverBadge = function(label, tone="accent")
+    label = str(label).upper
+    return driverText("border", "[") + driverText(tone, label) + driverText("border", "]")
+end function
+
+driverRule = function(width=60, tone="border")
+    rule = ""
+    for i in range(1, width)
+        rule = rule + "="
+    end for
+    return driverText(tone, rule)
+end function
+
+driverHeader = function(title, subtitle="")
+    line = driverBadge("driver", "accent") + " " + driverText("accentBright", title.upper)
+    if subtitle != "" then line = line + driverText("muted", " :: " + subtitle, 0)
+    return line
+end function
+
+driverMsg = function(tone, msg)
+    badgeTone = "accent"
+    if tone == "error"   then badgeTone = "error"
+    if tone == "success" then badgeTone = "success"
+    if tone == "warning" then badgeTone = "warning"
+    if tone == "info"    then badgeTone = "accentBright"
+    return driverBadge("driver", badgeTone) + " " + driverText(tone, msg, 0)
+end function
+
+driverPrompt = function()
+    pub  = c.public_ip
+    loc  = c.local_ip
+    usr  = active_user
+    host = c.get_name
+    path = current_path
+
+    print  // blank separator line before prompt (same convention as 5hell)
+
+    // 3-tier privilege color — mirrors 5hell's root/user/guest logic
+    tierColor = PALETTE["muted"]
+    if usr == "root" then tierColor = PALETTE["error"]
+    if usr != "root" and usr != "guest" then tierColor = PALETTE["accent"]
+
+    // Anchor: J (ASCII 74)
+    // Left:  J rotated 180° = upside-down hook (~⌐), raised above IP bar
+    // Right: J normal = downward hook — together they clamp the floating IP bar
+    // Asymmetric pure-ASCII char; completely different shape from 5hell's char(20057)
+    anchor = "<color=" + PALETTE["accentDeep"] + "><b>J</b></color>"
+
+    // Part 1 — open bold, rotate left anchor, raise it
+    p1 = "<b><rotate=180><voffset=.70em>"
+
+    // Part 2 — end rotate+raise, open IP bar: voffset=1em, 75% size, muted text color
+    p2 = "</rotate></voffset><voffset=1em><size=75%><color=" + PALETTE["muted"] + ">"
+
+    // Privilege underline — color opens+closes immediately so only the bar is tinted, not the text
+    bar = "<color=" + tierColor + "><u></color>"
+
+    // IP visible string — · dot separator between pub and loc (renders in GH, clean wire-node feel)
+    // Keep plain (no markup) so info.len gives correct visible char count for cspace calc
+    info = "[" + pub + " · " + loc
+
+    // Negative cspace on ] pulls cursor back left; closes underline
+    // Same formula as 5hell: info.len * 0.75em
+    pspace = "<cspace=-" + str(info.len * 0.75) + "em>]</u>"
+
+    // Part 3 — end IP bar, tiny nudge before right anchor
+    p3 = "</size></voffset><cspace=-.25em>"
+
+    // Connector — single > bridges right J-anchor to info line; ends bold+cspace
+    conn = "<voffset=-.25em><color=" + PALETTE["accent"] + "><b>-</b></color></voffset></b></cspace>"
+
+    // Info line — usr in tier color, @host:path in smaller muted/info tones
+    infoLine = "<color=" + PALETTE["muted"] + "><size=75%>" +
+               "<color=" + tierColor + "><b>" + usr + "</b></color>" +
+               "<color=" + PALETTE["border"] + ">@</color>" +
+               "<color=" + PALETTE["text"] + ">" + host + "</color>" +
+               "<color=" + PALETTE["border"] + ">:</color>" +
+               "<color=" + PALETTE["info"] + ">" + path + "</color>" +
+               "</size></color>"
+
+    // Input indicator — >> (ASCII double-angle): single > above was the connector,
+    //                    >> here signals "ready to drive" — two distinct rhythms
+    tick = "  <color=" + PALETTE["accentBright"] + "><b>>></b></color> "
+
+    return p1 + anchor + p2 + bar + info + pspace + p3 + anchor + conn + infoLine + tick
+end function
+
+// --- Splash Screen ---
+
+driverSplash = function()
+    artLines = [
+        "      :::::::::  :::::::::  ::::::::::: :::     ::: :::::::::: ::::::::: ",
+        "     :+:    :+: :+:    :+:     :+:     :+:     :+: :+:        :+:    :+: ",
+        "    +:+    +:+ +:+    +:+     +:+     +:+     +:+ +:+        +:+    +:+  ",
+        "   +#+    +:+ +#++:++#:      +#+     +#+     +:+ +#++:++#   +#++:++#:    ",
+        "  +#+    +#+ +#+    +#+     +#+      +#+   +#+  +#+        +#+    +#+    ",
+        " #+#    #+# #+#    #+#     #+#       #+#+#+#   #+#        #+#    #+#     ",
+        "#########  ###    ### ###########     ###     ########## ###    ###   "
+    ]
+    artTones = ["accentBright", "ember1", "ember2", "ember3", "ember4", "ember5", "ember6"]
+    print(driverRule(74, "shadow"), 0)
+    for i in range(0, artLines.len - 1)
+        print(driverText(artTones[i], artLines[i], 0))
+    end for
+    print(driverHeader("hacktool harness", "5hell  ·  HEX"))
+    print(driverText("info", "  version " + DRIVER_VERSION, 0))
+    print(driverRule(74))
+end function
