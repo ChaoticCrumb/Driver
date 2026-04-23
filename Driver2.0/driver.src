@@ -10,7 +10,7 @@ SRC_5HELL      = DRIVER_PATH + "/src/5hell"
 SRC_HEX        = DRIVER_PATH + "/src/hex"
 TMP_PATH       = "/root"
 
-DEBUG = true   // set true to enable verbose debug output
+DEBUG = false   // set true to enable verbose debug output
 
 s = get_shell
 c = s.host_computer
